@@ -90,7 +90,7 @@ export class GitService {
       const lines = stdout.trim().split('\n').filter(Boolean)
 
       for (const line of lines) {
-        const [name, date, hash] = line.split('|')
+        const [name, date] = line.split('|')
 
         const { stdout: commitCount } = await execPromise(
           `cd "${this.repoPath}" && git rev-list --count "${name}"`

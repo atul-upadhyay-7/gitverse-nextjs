@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { code, language, analysisType, context } = body
 
-    if (code . || !language || !analysisType) {
+    if (!code || !language || !analysisType) {
       return NextResponse.json(
         { error: 'Code, language, and analysis type are required' },
         { status: 400 }
