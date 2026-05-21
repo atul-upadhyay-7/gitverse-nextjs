@@ -13,6 +13,7 @@ import {
   User,
   ChevronLeft,
   Menu,
+  Server,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -52,6 +53,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { icon: LayoutDashboard, label: "Visualise", path: "/dashboard" },
     { icon: Search, label: "Search", path: "/search" },
     { icon: GitPullRequest, label: "Contribute", path: "/contribute" },
+    { icon: Server, label: "Workers", path: "/workers" },
     { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
