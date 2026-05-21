@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
 import { GitHubAppService } from "@/lib/services/githubAppService";
-import { GitHubService } from "@/lib/services/githubService";
+import { GitHubService, GitHubRateLimitError } from "@/lib/services/githubService";
 
 export async function POST(request: NextRequest) {
   try {
@@ -109,6 +109,14 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     console.error("GitHub App sync error:", error);
+
+    if (error instanceof GitHubRateLimitError) {
+      return NextResponse.json(
+        { error: error.message, retryAfter: error.retryAfterSeconds },
+        { status: 429 }
+      );
+    }
+
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
