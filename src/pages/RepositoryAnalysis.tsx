@@ -22,6 +22,7 @@ import {
   Trash2,
   Activity,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/Skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
