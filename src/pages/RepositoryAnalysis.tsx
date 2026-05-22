@@ -203,8 +203,14 @@ export default function RepositoryAnalysis() {
       );
 
       const nextJob = response.data.job || response.data;
-      // Reset lastProgressAt whenever progress changes
-      if (nextJob?.progressPercent !== undefined || nextJob?.progressMessage !== undefined) {
+      // Only reset lastProgressAt when progress actually changes value
+      // Comparing against current job state prevents resetting on unchanged
+      // fields like 0 / "Queued" which would prevent the timeout from firing
+      const prevPercent = job?.progressPercent ?? null;
+      const prevMessage = job?.progressMessage ?? null;
+      const nextPercent = nextJob?.progressPercent ?? null;
+      const nextMessage = nextJob?.progressMessage ?? null;
+      if (nextPercent !== prevPercent || nextMessage !== prevMessage) {
         lastProgressAt.current = Date.now();
       }
       setJob(nextJob);
