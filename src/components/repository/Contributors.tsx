@@ -130,6 +130,8 @@ export function Contributors({ repository }: ContributorsProps) {
           icon={Users}
           title="No contributors found"
           description="We couldn't find any contributor activity in this repository."
+          actionLabel="Refresh Data"
+          onAction={() => window.location.reload()}
         />
       ) : (
         <>

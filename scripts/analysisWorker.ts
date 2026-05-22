@@ -32,7 +32,7 @@ async function runJob(
     lockMs: number;
     heartbeatIntervalMs: number;
   }
-) {
+): Promise<boolean> {
   let heartbeatTimer: NodeJS.Timeout | null = null;
   let lastProgressWriteAt = 0;
   let lastProgressPercent: number | undefined;
@@ -101,6 +101,7 @@ async function runJob(
       jobId: job.id,
       workerId: params.workerId,
     });
+    return true;
   } catch (err: any) {
     const rateLimited = isRateLimitError(err);
     const retryAfter = rateLimited ? extractRetryAfter(err) : null;
@@ -123,9 +124,19 @@ async function runJob(
       maxAttempts: job.maxAttempts,
       retryAfter: retryAfter ?? undefined,
     });
+    return false;
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
   }
+}
+
+export interface AnalysisWorkerSummary {
+  totalJobsScanned: number;
+  jobsProcessed: number;
+  jobsSkipped: number;
+  jobsFailed: number;
+  executionDurationMs: number;
+  success: boolean;
 }
 
 export async function startAnalysisWorkerLoop(opts?: {
@@ -134,7 +145,7 @@ export async function startAnalysisWorkerLoop(opts?: {
   heartbeatIntervalMs?: number;
   lockMs?: number;
   once?: boolean;
-}) {
+}): Promise<AnalysisWorkerSummary> {
   const workerId = opts?.workerId || getWorkerId();
   const pollIntervalMs = opts?.pollIntervalMs ?? POLL_INTERVAL_MS;
   const heartbeatIntervalMs =
@@ -144,6 +155,11 @@ export async function startAnalysisWorkerLoop(opts?: {
   console.log(`analysis worker starting: ${workerId}`);
 
   let stopping = false;
+  const startTimeMs = Date.now();
+  let totalJobsScanned = 0;
+  let jobsProcessed = 0;
+  let jobsSkipped = 0;
+  let jobsFailed = 0;
 
   const shutdown = async (signal: string) => {
     if (stopping) return;
@@ -168,23 +184,49 @@ export async function startAnalysisWorkerLoop(opts?: {
       });
 
       if (!job) {
-        if (opts?.once) return;
+        jobsSkipped++;
+        if (opts?.once) break;
         await sleep(pollIntervalMs);
         continue;
       }
 
+      totalJobsScanned++;
       console.log(
         `claimed job ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`
       );
-      await runJob(job, { workerId, lockMs, heartbeatIntervalMs });
+      const isSuccess = await runJob(job, { workerId, lockMs, heartbeatIntervalMs });
+      
+      if (isSuccess) {
+        jobsProcessed++;
+      } else {
+        jobsFailed++;
+      }
 
-      if (opts?.once) return;
+      if (opts?.once) break;
     } catch (e) {
       console.error("worker loop error:", sanitizeErrorMessage(e));
-      if (opts?.once) return;
+      if (opts?.once) {
+        return {
+          totalJobsScanned,
+          jobsProcessed,
+          jobsSkipped,
+          jobsFailed,
+          executionDurationMs: Date.now() - startTimeMs,
+          success: false,
+        };
+      }
       await sleep(pollIntervalMs);
     }
   }
+
+  return {
+    totalJobsScanned,
+    jobsProcessed,
+    jobsSkipped,
+    jobsFailed,
+    executionDurationMs: Date.now() - startTimeMs,
+    success: true,
+  };
 }
 
 // Run as standalone script
