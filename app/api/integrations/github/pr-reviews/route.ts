@@ -3,6 +3,8 @@ import { isHttpError, requireAuth } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
 import { toJsonSafe } from "@/lib/utils/jsonSafe";
 
+export const dynamic = "force-dynamic";
+
 function clampInt(
   value: string | null,
   fallback: number,
