@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyGitHubWebhookSignature } from "@/lib/utils/githubWebhook";
 import { GitHubAppService } from "@/lib/services/githubAppService";
 import { GitHubService } from "@/lib/services/githubService";
+import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 import prisma from "@/lib/prisma";
 import {
   formatPRReviewMarkdown,
@@ -265,7 +266,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error("GitHub webhook PR review error:", error);
+    console.error("GitHub webhook PR review error:", sanitizeErrorMessage(error));
     return noStoreResponse(
       { error: "Failed to process PR webhook" },
       500

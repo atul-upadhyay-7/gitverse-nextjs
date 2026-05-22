@@ -1,9 +1,14 @@
 import axios, { AxiosError, AxiosInstance, isAxiosError } from "axios";
+import { getRetryDelayMs } from "@/lib/utils/rateLimit";
 
 export class GitHubRateLimitError extends Error {
   retryAfterSeconds: number;
   constructor(retryAfterSeconds: number) {
-    super(`GitHub API rate limit reached. Please retry after ${retryAfterSeconds} seconds.`);
+    super(
+      retryAfterSeconds > 0
+        ? `GitHub API rate limit reached. Please retry after ${retryAfterSeconds} seconds.`
+        : "GitHub API rate limit reached. Please try again later.",
+    );
     this.name = "GitHubRateLimitError";
     this.retryAfterSeconds = retryAfterSeconds;
   }
@@ -165,30 +170,40 @@ export class GitHubService {
         const status = error.response?.status;
         const config = error.config as any;
 
-        if (status === 429 || status === 403) {
+        config.retryCount = config.retryCount || 0;
+
+        const isRateLimit = status === 429 || status === 403;
+        if (isRateLimit) {
           const rateLimitRemaining = error.response?.headers?.["x-ratelimit-remaining"];
           if (status === 429 || rateLimitRemaining === "0") {
-            const retryAfterHeader = error.response?.headers?.["retry-after"];
-            const resetHeader = error.response?.headers?.["x-ratelimit-reset"];
-            let retrySeconds = 60;
+            if (config.retryCount >= 3) {
+              const retryAfterHeader = error.response?.headers?.["retry-after"];
+              const resetHeader = error.response?.headers?.["x-ratelimit-reset"];
+              let retrySeconds = 60;
 
-            if (retryAfterHeader) {
-              retrySeconds = parseInt(retryAfterHeader, 10);
-            } else if (resetHeader) {
-              const resetTime = parseInt(resetHeader, 10) * 1000;
-              retrySeconds = Math.max(1, Math.ceil((resetTime - Date.now()) / 1000));
+              if (retryAfterHeader) {
+                retrySeconds = parseInt(retryAfterHeader, 10);
+              } else if (resetHeader) {
+                const resetTime = parseInt(resetHeader, 10) * 1000;
+                retrySeconds = Math.max(1, Math.ceil((resetTime - Date.now()) / 1000));
+              }
+              throw new GitHubRateLimitError(retrySeconds);
             }
-            throw new GitHubRateLimitError(retrySeconds);
+            config.retryCount += 1;
+            const delayMs = getRetryDelayMs(error, config.retryCount) ?? 1000;
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            return this.client(config);
           }
         }
 
-        const retryStatusCodes = [502, 503, 504];
+        const retryableCodes = [502, 503, 504];
         if (
-          (status && retryStatusCodes.includes(status)) ||
+          (status && retryableCodes.includes(status)) ||
           error.code === "ECONNABORTED" ||
+          error.code === "ECONNRESET" ||
+          error.code === "ETIMEDOUT" ||
           !error.response
         ) {
-          config.retryCount = config.retryCount || 0;
           if (config.retryCount < 3) {
             config.retryCount += 1;
             const backoff = Math.pow(2, config.retryCount) * 1000 + Math.random() * 1000;

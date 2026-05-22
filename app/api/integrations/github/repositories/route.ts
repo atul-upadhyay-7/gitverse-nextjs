@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth } from "@/lib/middleware";
 import { GitHubService, GitHubRateLimitError } from "@/lib/services/githubService";
+import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ repositories, source: "github-app-db" });
   } catch (error: any) {
-    console.error("GitHub repositories error:", error);
+    console.error("GitHub repositories error:", sanitizeErrorMessage(error));
 
     if (error instanceof GitHubRateLimitError) {
       return NextResponse.json(
