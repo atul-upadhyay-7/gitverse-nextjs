@@ -170,14 +170,17 @@ export class GitHubService {
         const status = error.response?.status;
         const config = error.config as any;
 
-        config.retryCount = config.retryCount || 0;
+        // Track retries separately for rate-limit and transient so one
+        // doesn't consume the other's budget.
+        config.rateLimitRetryCount = config.rateLimitRetryCount || 0;
+        config.transientRetryCount = config.transientRetryCount || 0;
 
         const isRateLimit = status === 429 || status === 403;
         if (isRateLimit) {
           const rateLimitRemaining = error.response?.headers?.["x-ratelimit-remaining"];
-          if (status === 429 || rateLimitRemaining === "0") {
-            if (config.retryCount >= 3) {
-              const retryAfterHeader = error.response?.headers?.["retry-after"];
+          const retryAfterHeader = error.response?.headers?.["retry-after"];
+          if (status === 429 || rateLimitRemaining === "0" || retryAfterHeader) {
+            if (config.rateLimitRetryCount >= 3) {
               const resetHeader = error.response?.headers?.["x-ratelimit-reset"];
               let retrySeconds = 60;
 
@@ -189,8 +192,9 @@ export class GitHubService {
               }
               throw new GitHubRateLimitError(retrySeconds);
             }
-            config.retryCount += 1;
-            const delayMs = getRetryDelayMs(error, config.retryCount) ?? 1000;
+            config.rateLimitRetryCount += 1;
+            const delayMs = getRetryDelayMs(error, config.rateLimitRetryCount) ?? 1000;
+            console.log(`Rate-limited, retrying ${config.url} (attempt ${config.rateLimitRetryCount}/3)`);
             await new Promise((resolve) => setTimeout(resolve, delayMs));
             return this.client(config);
           }
