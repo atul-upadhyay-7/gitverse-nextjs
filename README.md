@@ -242,7 +242,7 @@ Environment Variables:**
 | `GOOGLE_CLIENT_SECRET` |  Yes | Google OAuth client secret | From Google Cloud Console |
 | `NEXT_PUBLIC_API_URL` |  Optional | API URL for client-side calls | Defaults to current domain |
 
-#### 🚀 Deployment Steps
+#### 🚀 Deployment Steps:
 
 1. Push your code to GitHub.
 2. Import the project in the [Vercel dashboard](https://vercel.com/new).
@@ -258,6 +258,31 @@ Environment Variables:**
 4. Add all required environment variables from the checklist above
 5. Click **Deploy**
 6. In Google Cloud Console, add your Vercel URL as an OAuth redirect URI
+
+#### 🔧 Troubleshooting
+
+**Build failing on Vercel?**
+- Ensure all required environment variables are set
+- Check build logs under **Vercel Dashboard → Deployments → Build Logs**
+
+**Database connection errors?**
+- Verify `DATABASE_URL` is a valid PostgreSQL connection string
+- If using Neon, make sure the database is not paused
+- Neon free tier pauses after inactivity — wake it up from the Neon dashboard
+
+**Google OAuth not working?**
+- Ensure `NEXTAUTH_URL` exactly matches your Vercel deployment URL
+- Add `https://your-app.vercel.app/api/auth/callback/google` 
+  to **Authorized Redirect URIs** in Google Cloud Console
+- Check `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are correctly copied
+
+**AI analysis not working?**
+- Verify `GEMINI_API_KEY` is valid and has not exceeded quota
+- Check [Google AI Studio](https://aistudio.google.com) for API usage limits
+
+**Environment variables not updating?**
+- After changing env vars in Vercel dashboard, trigger a **Redeploy** manually
+- Vercel does not auto-redeploy when env vars change
 
 ### Docker
 
