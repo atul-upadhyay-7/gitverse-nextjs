@@ -65,7 +65,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ repos: toJsonSafe(repos) }, { status: 200 });
+    return NextResponse.json({ repos: toJsonSafe(repos) }, { status: 200 }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      },
+    });
   } catch (error: any) {
     console.error("GitHub PR reviews error:", sanitizeError(error));
     if (isHttpError(error)) {
