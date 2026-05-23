@@ -582,7 +582,7 @@ Required
 
 - `repoFullName` (optional): Filter by a specific repository full name.
 - `includeDisabled` (optional): Set to `true` to include repositories that have been disabled.
-- `limit` (optional): Maximum number of pull requests to return per repository. Default is `20`. Must be between `1` and `100`.
+- `limit` (optional): Maximum number of pull requests to return per repository. Default is `20` when omitted or invalid. Values below `1` are clamped to `1`. Values above `100` are clamped to `100`.
 
 ### Success Response
 
