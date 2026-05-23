@@ -323,7 +323,7 @@ export default function RepositoryAnalysis() {
             </div>
 
             {isAnalyzing ? (
-              <div className="glass rounded-lg p-12 text-center space-y-4">
+              <div className="glass rounded-lg p-12 text-center space-y-4 animate-pulse">
                 <div className="flex justify-center">
                   <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
                 </div>
