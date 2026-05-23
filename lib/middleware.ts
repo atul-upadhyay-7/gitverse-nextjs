@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, JWTPayload } from "./auth";
 import { getToken } from "next-auth/jwt";
 
@@ -84,4 +84,8 @@ export function sanitizeError(error: unknown): string {
   } catch {
     return "Unknown error";
   }
+}
+
+export function errorResponse(message: string, status: number = 400): NextResponse {
+  return NextResponse.json({ error: message }, { status });
 }
