@@ -336,9 +336,11 @@ export default function RepositoryAnalysis() {
                     contributors, and more.
                   </p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    {job?.progressPercent != null || job?.progressMessage
-                      ? `${job?.progressPercent ?? 0}% — ${job?.progressMessage || "Working"}`
-                      : "This may take a few moments depending on the repository size..."}
+                    {job?.progressPercent != null && job?.progressPercent >= 0
+                      ? `${Math.min(Math.round(job.progressPercent), 100)}%${job?.progressMessage ? ` — ${job.progressMessage}` : ""}`
+                      : job?.progressMessage
+                        ? job.progressMessage
+                        : "This may take a few moments depending on the repository size..."}
                   </p>
                 </div>
                 <div className="flex justify-center gap-4 text-sm text-muted-foreground">
