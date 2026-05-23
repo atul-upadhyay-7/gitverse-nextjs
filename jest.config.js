@@ -3,8 +3,10 @@ const config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1',
-  },
+  '^@/lib/(.*)$': '<rootDir>/lib/$1',
+  '^@/app/(.*)$': '<rootDir>/app/$1',
+  '^@/(.*)$': '<rootDir>/src/$1',
+},
   testMatch: ['**/__tests__/**/*.test.ts'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
