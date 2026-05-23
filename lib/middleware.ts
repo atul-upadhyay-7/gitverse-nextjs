@@ -45,6 +45,17 @@ export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
   return user;
 }
 
+export async function requireOwnership(
+  request: NextRequest,
+  resourceUserId: number
+): Promise<JWTPayload> {
+  const user = await requireAuth(request);
+  if (user.userId !== resourceUserId) {
+    throw new HttpError(403, "Forbidden");
+  }
+  return user;
+}
+
 export class HttpError extends Error {
   status: number;
 
