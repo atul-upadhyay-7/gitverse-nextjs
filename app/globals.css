@@ -94,6 +94,11 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem; /* account for fixed navbar height */
+  }
+
   * {
     @apply border-border;
   }
