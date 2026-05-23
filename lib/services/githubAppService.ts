@@ -61,6 +61,15 @@ export class GitHubAppService {
     return token;
   }
 
+  async validateInstallationToken(installationId: number): Promise<boolean> {
+    try {
+      const token = await this.getInstallationAccessToken(installationId);
+      return !!token;
+    } catch {
+      return false;
+    }
+  }
+
   async uninstallInstallation(installationId: number): Promise<void> {
     if (!Number.isFinite(installationId)) {
       throw new Error("installationId must be a number");
