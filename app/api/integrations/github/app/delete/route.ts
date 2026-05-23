@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: "Failed to delete GitHub App data",
+        error: "Failed to delete GitHub App data. Ensure the app installation is still active and you have the required permissions.",
       },
       { status: 500 },
     );
