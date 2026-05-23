@@ -62,6 +62,10 @@ export async function GET(
         updatedAt: job.updatedAt,
         createdAt: job.createdAt,
       },
+    }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      },
     });
   } catch (error: any) {
     console.error("Get analysis job error:", error);

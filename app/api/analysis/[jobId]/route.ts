@@ -20,7 +20,11 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ job });
+    return NextResponse.json({ job }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      },
+    });
   } catch (error: any) {
     console.error("GET /analysis/:jobId error:", error);
     return NextResponse.json({ error: "Failed to fetch job" }, { status: 500 });
