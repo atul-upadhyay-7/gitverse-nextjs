@@ -23,9 +23,12 @@ Add screenshots or recordings for UI changes. Write `N/A` if this pull request d
 
 Describe the commands you ran and any manual verification performed.
 
-- [ ] I ran the relevant checks locally
-- [ ] I verified the changed behavior manually
-- [ ] I updated or added tests where appropriate
+- [ ] Ran `npm run lint`
+- [ ] Ran `npm run build`
+- [ ] Ran `npm run format`
+- [ ] Ran `git diff --check`
+- [ ] Verified the changed behavior manually, or wrote `N/A` for documentation-only changes
+- [ ] Updated or added tests where appropriate, or wrote `N/A` with a reason
 
 ## Checklist
 
