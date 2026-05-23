@@ -187,7 +187,12 @@ export default function Dashboard() {
       setRepoUrl("");
     } catch (error: any) {
       console.error("Error creating repository:", error);
-      alert(error.response?.data?.error || "Failed to analyze repository");
+      const errMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Failed to analyze repository";
+      toast({
+        title: "Analysis Failed",
+        description: errMsg,
+        variant: "destructive",
+      });
     } finally {
       setAnalyzing(false);
     }
