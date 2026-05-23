@@ -25,6 +25,7 @@ import {
   AlertCircle,
   Clock,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -114,49 +115,31 @@ export default function RepositoryAnalysis() {
   const [repository, setRepository] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [job, setJob] = useState<any>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
-  useEffect(() => {
-    fetchRepository();
-  }, [id]);
-
-  useEffect(() => {
-    // Poll job status (lightweight) while analyzing.
-    const repoStatus = repository?.status as string | undefined;
-    const jobStatus = job?.status as string | undefined;
-
-    const shouldShowAnalyzing =
-      repoStatus === "pending" ||
-      repoStatus === "analyzing" ||
-      jobStatus === "QUEUED" ||
-      jobStatus === "PROCESSING";
-
-    setIsAnalyzing(Boolean(shouldShowAnalyzing));
-
-    const jobId = job?.id || repository?.latestJob?.id;
-    if (!jobId) return;
-
-    if (jobStatus === "DONE" || jobStatus === "FAILED") return;
-
-    let stopped = false;
-    let intervalMs = 2000;
-
-    const poll = async () => {
-      if (stopped) return;
-      await fetchJob(jobId);
-      if (stopped) return;
-      setTimeout(poll, intervalMs);
-      intervalMs = Math.min(5000, intervalMs + 500);
-    };
-
-    poll();
-
-    return () => {
-      stopped = true;
-    };
-  }, [repository?.status, repository?.latestJob?.id, job?.id, job?.status]);
+  const handleRetryAnalysis = async () => {
+    if (retrying || !repository) return;
+    setRetrying(true);
+    try {
+      const token = localStorage.getItem("gitverse_token");
+      await axios.post(buildApiUrl(`/api/repositories/${id}/analyze`), {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast({
+        title: "Analysis queued",
+        description: "Your repository has been queued for re-analysis.",
+      });
+      fetchRepository();
+    } catch (err: any) {
+      toast({
+        title: "Retry failed",
+        description: err.response?.data?.error || err.message || "Failed to retry analysis",
+        variant: "destructive",
+      });
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const fetchRepository = async () => {
     if (!id) return;
@@ -318,6 +301,16 @@ export default function RepositoryAnalysis() {
                 </p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <StatusBadge status={repository.status} isAnalyzing={isAnalyzing} />
+                  {repository.status === "failed" && (
+                    <button
+                      onClick={handleRetryAnalysis}
+                      disabled={retrying}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${retrying ? "animate-spin" : ""}`} />
+                      {retrying ? "Retrying..." : "Retry Analysis"}
+                    </button>
+                  )}
                 </div>
               </div>
               {/* Delete button */}
