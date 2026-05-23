@@ -277,8 +277,22 @@ export class GitHubService {
    * Get repository branches
    */
   async getBranches(owner: string, repo: string): Promise<GitHubBranch[]> {
-    const response = await this.client.get(`/repos/${owner}/${repo}/branches`);
-    return response.data;
+    let allBranches: GitHubBranch[] = [];
+    let page = 1;
+    const MAX_PAGES = 5;
+    let hasMore = true;
+
+    while (hasMore && page <= MAX_PAGES) {
+      const response = await this.client.get(`/repos/${owner}/${repo}/branches`, {
+        params: { per_page: 100, page },
+      });
+      const branches = response.data;
+      allBranches = allBranches.concat(branches);
+      hasMore = branches.length === 100;
+      page++;
+    }
+
+    return allBranches;
   }
 
   /**
