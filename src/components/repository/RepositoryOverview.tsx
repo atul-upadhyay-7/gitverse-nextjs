@@ -255,6 +255,11 @@ export const RepositoryOverview = ({
             <p className="text-xs sm:text-sm text-muted-foreground mb-3 break-words">
               {repository.description}
             </p>
+            {repository.lastAnalyzedAt && (
+              <p className="text-xs text-muted-foreground">
+                Last analyzed: {new Date(repository.lastAnalyzedAt).toLocaleDateString()}
+              </p>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
               <a
                 href={repository.url}
