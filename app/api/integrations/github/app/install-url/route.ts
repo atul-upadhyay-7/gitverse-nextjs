@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: "Failed to create install URL",
+        error: "Failed to create GitHub App installation URL. Ensure the app is correctly configured and installed in your GitHub settings.",
       },
       { status: 500 },
     );
