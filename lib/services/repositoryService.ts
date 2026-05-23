@@ -249,7 +249,10 @@ if (githubMatch) {
     if (process.env.GITHUB_TOKEN) {
       headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
     }
-    const res = await fetch(apiUrl, { headers });
+    const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+const res = await fetch(apiUrl, { headers, signal: controller.signal });
+clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data.default_branch) {
