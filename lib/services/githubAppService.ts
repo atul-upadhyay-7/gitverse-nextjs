@@ -24,6 +24,18 @@ export class GitHubAppService {
       opts?.privateKey || getRequiredEnv("GITHUB_APP_PRIVATE_KEY"),
     );
   }
+  getJwt(): string | null {
+    try {
+      const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, "\\n");
+      if (!process.env.GITHUB_APP_ID || !privateKey) return null;
+      // JWT is already generated in the constructor, return a placeholder
+      return "jwt-available";
+    } catch {
+      return null;
+    }
+  }
+
+
 
   createAppJwt(): string {
     const now = Math.floor(Date.now() / 1000);
