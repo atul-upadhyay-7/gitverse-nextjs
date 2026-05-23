@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: "Failed to sync GitHub App installation repos",
+        error: "Failed to sync GitHub App installation repos. Ensure the app is installed and has access to the selected repositories.",
       },
       { status: 500 },
     );
