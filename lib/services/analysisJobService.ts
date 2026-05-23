@@ -175,6 +175,25 @@ export class AnalysisJobService {
     return prisma.analysisJob.findUnique({ where: { id: claimedId } });
   }
 
+  async cleanupStaleJobs(): Promise<number> {
+    const stale = await prisma.analysisJob.updateMany({
+      where: {
+        status: "PROCESSING",
+        lockExpiresAt: { lt: new Date() },
+        updatedAt: { lt: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+      data: {
+        status: "FAILED",
+        error: "Job timed out - no heartbeat received",
+        finishedAt: new Date(),
+        lockedAt: null,
+        lockedBy: null,
+        lockExpiresAt: null,
+      },
+    });
+    return stale.count;
+  }
+
   async heartbeat(params: {
     jobId: string;
     workerId: string;
