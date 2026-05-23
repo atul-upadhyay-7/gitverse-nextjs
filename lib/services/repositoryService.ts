@@ -141,6 +141,8 @@ export class RepositoryService {
         description: input.description,
         userId: input.userId,
         status: "pending",
+        stars: 0,
+        forks: 0,
       },
     });
 
