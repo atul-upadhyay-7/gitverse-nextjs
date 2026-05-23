@@ -275,8 +275,16 @@ export default function RepositoryAnalysis() {
     <DashboardLayout>
       <div className="space-y-6">
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading repository...</p>
+          <div className="glass rounded-lg p-12 text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Loading Repository</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Fetching repository data and analysis results...
+              </p>
+            </div>
           </div>
         ) : !job ? (
   <div className="text-center py-12 flex flex-col items-center gap-4">
