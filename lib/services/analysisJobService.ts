@@ -22,6 +22,16 @@ export class AnalysisJobService {
     userId: number;
     maxAttempts?: number;
   }): Promise<AnalysisJob> {
+    const existing = await prisma.analysisJob.findFirst({
+      where: {
+        repositoryId: params.repositoryId,
+        userId: params.userId,
+        status: { in: ["QUEUED", "PROCESSING"] },
+      },
+    });
+    if (existing) {
+      return existing;
+    }
     return prisma.analysisJob.create({
       data: {
         repositoryId: params.repositoryId,
