@@ -25,6 +25,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   const RepoGraph = ({
     className,
@@ -176,24 +178,24 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError("");
+    setPasswordError("");
+    let hasError = false;
 
-    if (!email || !password) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
-      return;
+    if (!email) {
+      setEmailError("Email is required");
+      hasError = true;
+    } else if (!email.includes("@")) {
+      setEmailError("Please enter a valid email address");
+      hasError = true;
     }
 
-    if (!email.includes("@")) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      });
-      return;
+    if (!password) {
+      setPasswordError("Password is required");
+      hasError = true;
     }
+
+    if (hasError) return;
 
     setIsLoading(true);
 
@@ -261,17 +263,22 @@ export default function Login() {
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${emailError ? "text-red-500" : "text-muted-foreground"}`} />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError("");
+                  }}
+                  className={`pl-10 ${emailError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                   required
+                  aria-invalid={!!emailError}
                 />
               </div>
+              {emailError && <p className="text-sm text-red-500 mt-1">{emailError}</p>}
             </div>
 
             <div
@@ -282,17 +289,22 @@ export default function Login() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Lock className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${passwordError ? "text-red-500" : "text-muted-foreground"}`} />
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passwordError) setPasswordError("");
+                  }}
+                  className={`pl-10 ${passwordError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                   required
+                  aria-invalid={!!passwordError}
                 />
               </div>
+              {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
             </div>
 
             <div
