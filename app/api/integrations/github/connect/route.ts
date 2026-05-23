@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: "Failed to connect GitHub",
+        error: "Failed to connect GitHub. Please ensure the GitHub App is installed and has the required permissions.",
       },
       { status: 500 },
     );
