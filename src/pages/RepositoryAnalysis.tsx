@@ -372,7 +372,7 @@ export default function RepositoryAnalysis() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`
-                          flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 whitespace-nowrap
+                          flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 whitespace-nowrap w-full sm:w-auto justify-center
                           ${
                             activeTab === tab.id
                               ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
