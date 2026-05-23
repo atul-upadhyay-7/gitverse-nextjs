@@ -95,6 +95,21 @@ export class AnalysisJobService {
     attempts: number;
     maxAttempts: number;
   }): Promise<void> {
+    // Update repository status to failed when retries exhausted
+    try {
+      const job = await prisma.analysisJob.findUnique({
+        where: { id: params.jobId },
+        select: { repositoryId: true },
+      });
+      if (job?.repositoryId && params.attempts >= params.maxAttempts) {
+        await prisma.repository.update({
+          where: { id: job.repositoryId },
+          data: { status: "failed" },
+        });
+      }
+    } catch {
+      // Non-critical: repo status update must not crash job status update
+    }
     const shouldRetry = params.attempts < params.maxAttempts;
 
     if (shouldRetry) {
