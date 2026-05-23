@@ -331,7 +331,7 @@ export default function RepositoryAnalysis() {
             </div>
 
             {isAnalyzing ? (
-              <div className="glass rounded-lg p-12 text-center space-y-4 animate-pulse">
+              <div className="glass rounded-lg p-12 text-center space-y-6 animate-pulse">
                 <div className="flex justify-center">
                   <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
                 </div>
@@ -343,7 +343,17 @@ export default function RepositoryAnalysis() {
                     We&apos;re analyzing the repository structure, commits,
                     contributors, and more.
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2">
+                  <div className="mt-4 space-y-3 max-w-md mx-auto">
+                    <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
+                    <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+                    <div className="h-24 bg-muted rounded w-full"></div>
+                    <div className="flex gap-4 justify-center pt-2">
+                      <div className="h-4 bg-muted rounded w-20"></div>
+                      <div className="h-4 bg-muted rounded w-20"></div>
+                      <div className="h-4 bg-muted rounded w-20"></div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-4">
                     {job?.progressPercent != null && job?.progressPercent >= 0
                       ? `${Math.min(Math.round(job.progressPercent), 100)}%${job?.progressMessage ? ` — ${job.progressMessage}` : ""}`
                       : job?.progressMessage
