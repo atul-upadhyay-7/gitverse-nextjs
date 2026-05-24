@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Grid, List, GitBranch, Clock, Activity } from "lucide-react";
+import { Search, Grid, List, GitBranch, Clock, Activity, Users } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
@@ -157,8 +157,8 @@ finally {
           </p>
         </div>
 
-        {/* Repository Grid/List */}
-       {loading ? (
+       {/* Repository Grid/List */}
+{loading ? (
   <div className="text-center py-12 text-muted-foreground">
     Loading repositories...
   </div>
@@ -167,28 +167,28 @@ finally {
     {error}
   </div>
 ) : sortedRepositories.length === 0 ? (
-          searchQuery ? (
-            <EmptyState
-              icon={Search}
-              title="No repositories found"
-              description="We couldn't find any repositories matching your search query. Try adjusting your search term."
-              suggestions={[
-                "Try another repository",
-                "Check the GitHub username",
-              ]}
-              actionLabel="Clear Search"
-              onAction={() => setSearchQuery("")}
-            />
-          ) : (
-            <EmptyState
-              icon={GitBranch}
-              title="No Repositories Yet"
-              description="You haven't analyzed any repositories. Head to the dashboard to get started!"
-              actionLabel="Go to Dashboard"
-              onAction={() => router.push("/dashboard")}
-            />
-          )
-        ) : viewMode === "grid" ? (
+  searchQuery ? (
+    <EmptyState
+      icon={Search}
+      title="No repositories found"
+      description="We couldn't find any repositories matching your search query. Try adjusting your search term."
+      suggestions={[
+        "Try another repository",
+        "Check the GitHub username",
+      ]}
+      actionLabel="Clear Search"
+      onAction={() => setSearchQuery("")}
+    />
+  ) : (
+    <EmptyState
+      icon={GitBranch}
+      title="No Repositories Yet"
+      description="You haven't analyzed any repositories. Head to the dashboard to get started!"
+      actionLabel="Go to Dashboard"
+      onAction={() => router.push("/dashboard")}
+    />
+  )
+) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {sortedRepositories.map((repo, index) => (
               <Card
