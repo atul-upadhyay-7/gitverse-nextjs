@@ -1,18 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { Card, EmptyState } from "@/components/ui";
-import { Button } from "@/components/ui/Button";
-import { Network, Download, Loader2 } from "lucide-react";
+import { Network } from "lucide-react";
 import { GraphAnalyzer } from "@/utils/graphAnalyzer";
 import { ModuleSummaryPanel } from "./ModuleSummaryPanel";
 import { AISettingsModal } from "@/components/settings/AISettingsModal";
-import { exportGraphAsPNG, exportGraphAsPDF } from "@/utils/graphExport";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 
 
 
@@ -26,31 +18,6 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-
-  const handleExportPNG = async () => {
-    if (!svgRef.current) return;
-    setIsExporting(true);
-    try {
-      await exportGraphAsPNG(svgRef.current);
-    } catch (error) {
-      console.error("Export failed", error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleExportPDF = async () => {
-    if (!svgRef.current) return;
-    setIsExporting(true);
-    try {
-      await exportGraphAsPDF(svgRef.current);
-    } catch (error) {
-      console.error("Export failed", error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   const graphAnalyzer = new GraphAnalyzer();
   const graphData = graphAnalyzer.buildDependencyGraph(repository?.files || []);
