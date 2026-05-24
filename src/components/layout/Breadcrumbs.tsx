@@ -29,8 +29,11 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
             {index > 0 && <ChevronRight size={16} className="text-muted-foreground" />}
             
             {isLast || isActive ? (
-              {/* CodeRabbit Fix: Changed text-secondary to text-foreground for accessible active text visibility */}
-              <span className="font-medium text-foreground">
+{isLast || isActive ? (
+  <span className="font-medium text-foreground">
+    {item.label}
+  </span>
+) : (
                 {item.label}
               </span>
             ) : (
