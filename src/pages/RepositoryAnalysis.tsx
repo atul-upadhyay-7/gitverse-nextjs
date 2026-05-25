@@ -11,7 +11,7 @@ import { CommitHistory } from "@/components/repository/CommitHistory";
 import { Contributors } from "@/components/repository/Contributors";
 import { RepositoryInsights } from "@/components/repository/RepositoryInsights";
 import { RepositoryMentorTab } from "@/components/ai/RepositoryMentorTab";
-import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+
 import {
   Home,
   FolderTree,
