@@ -51,9 +51,18 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
-    const body = await request.json();
-    const { currentPassword } = body;
+   let body;
 
+try {
+  body = await request.json();
+} catch {
+  return NextResponse.json(
+    { error: "Invalid or empty request body" },
+    { status: 400 }
+  );
+}
+
+const { currentPassword } = body;
     if (!currentPassword) {
       return NextResponse.json(
         { error: "Current password is required" },
@@ -84,24 +93,23 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete related GitHub repositories
-    await prisma.gitHubRepo.deleteMany({
-      where: {
-        userId: user.userId,
-      },
-    });
-
-    // Delete related GitHub accounts
-    await prisma.gitHubAccount.deleteMany({
-      where: {
-        userId: user.userId,
-      },
-    });
-
-    // Delete the user
-    await prisma.user.delete({
-      where: { id: user.userId },
-    });
+    await prisma.$transaction([
+  prisma.gitHubRepo.deleteMany({
+    where: {
+      userId: user.userId,
+    },
+  }),
+  prisma.gitHubAccount.deleteMany({
+    where: {
+      userId: user.userId,
+    },
+  }),
+  prisma.user.delete({
+    where: {
+      id: user.userId,
+    },
+  }),
+]);
 
     return NextResponse.json({ message: "Account deleted" });
   } catch (error: any) {

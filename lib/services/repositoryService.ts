@@ -425,27 +425,28 @@ export class RepositoryService {
 const latestCommitHashes = commits.map((commit: { hash: string }) => commit.hash);
       // Enforce commit retention window
       
-
-      await prisma.fileChange.deleteMany({
-        where: {
-          commit: {
-            repositoryId,
-            hash: {
-              notIn: latestCommitHashes,
-            },
-          },
+await prisma.$transaction([
+  prisma.fileChange.deleteMany({
+    where: {
+      commit: {
+        repositoryId,
+        hash: {
+          notIn: latestCommitHashes,
         },
-      });
+      },
+    },
+  }),
 
-      await prisma.commit.deleteMany({
-        where: {
-          repositoryId,
-          hash: {
-            notIn: latestCommitHashes,
-          },
-        },
-      });
-
+  prisma.commit.deleteMany({
+    where: {
+      repositoryId,
+      hash: {
+        notIn: latestCommitHashes,
+      },
+    },
+  }),
+]);
+     
       // Analyze files
       await report({ progressPercent: 65, progressMessage: "Scanning files" });
       const files = await gitService.getFileTree({
