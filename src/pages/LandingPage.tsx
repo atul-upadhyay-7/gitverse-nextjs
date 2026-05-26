@@ -26,6 +26,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui";
+import { RecentReposList } from "@/components/RecentReposList";
+import { useRecentRepos } from "@/hooks/useRecentRepos";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -152,6 +154,15 @@ export default function LandingPage() {
     const name = urlParts[urlParts.length - 1] || "";
     const owner = urlParts[urlParts.length - 2] || "";
 
+    if (name && owner) {
+      addRepo({
+        owner,
+        name,
+        url: repoUrl.trim(),
+      });
+    }
+
+    // Demo-only CTA: keep it as UI (no navigation / no analysis).
     setIsLoading(true);
     setTimeout(() => {
       addRepo({ name, owner, url: cleanUrl });
@@ -462,6 +473,10 @@ export default function LandingPage() {
               </p>
 
             </form>
+
+            {/* Recent Repositories */}
+            <RecentReposList />
+
 
             {/* Demos */}
             <div
