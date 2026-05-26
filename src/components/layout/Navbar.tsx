@@ -1,9 +1,7 @@
-"use client";
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { GitBranch, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { ThemeToggle } from './ThemeToggle'
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -35,7 +33,7 @@ export const Navbar: React.FC = () => {
               <a
                 key={link.name}
                 href={link.href}
-                className="text-muted-foreground hover:text-foreground transition-colors font-medium"
+                className="nav-link text-muted-foreground hover:text-foreground transition-colors font-medium"
               >
                 {link.name}
               </a>
@@ -44,7 +42,6 @@ export const Navbar: React.FC = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <ThemeToggle />
             <Button className="bg-gradient-primary hover:opacity-90 transition-opacity" asChild>
               <Link href="/login">Sign In</Link>
             </Button>
@@ -71,7 +68,7 @@ export const Navbar: React.FC = () => {
                 <a
                   key={link.name}
                   href={link.href}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="nav-link text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   {link.name}

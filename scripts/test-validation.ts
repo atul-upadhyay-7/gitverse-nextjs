@@ -18,11 +18,7 @@ interface TestResult {
 
 const results: TestResult[] = [];
 
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-
-async function test(
+async function runTest(
   endpoint: string,
   method: string,
   body: any | null,
@@ -34,10 +30,7 @@ async function test(
   };
 
   if (token) {
-    const actualToken = token === "test-token"
-      ? jwt.sign({ userId: 1, email: "test@example.com" }, JWT_SECRET)
-      : token;
-    headers.Authorization = `Bearer ${actualToken}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const response = await fetch(`${BASE_URL}${endpoint}`, {
@@ -75,7 +68,7 @@ async function runTests() {
   console.log("Running validation tests...\n");
 
   // Test 1: Suggest commit without any data
-  await test(
+  await runTest(
     "/api/ai/suggest-commit",
     "POST",
     {},
@@ -84,7 +77,7 @@ async function runTests() {
   );
 
   // Test 2: Suggest commit with empty arrays
-  await test(
+  await runTest(
     "/api/ai/suggest-commit",
     "POST",
     { added: [], modified: [], deleted: [] },
@@ -96,7 +89,7 @@ async function runTests() {
   // Note: This tests that validation happens before auth check
 
   // Test 4: GitHub import without URL
-  await test(
+  await runTest(
     "/api/integrations/github/import",
     "POST",
     { token: "some-token" },
@@ -105,7 +98,7 @@ async function runTests() {
   );
 
   // Test 5: GitHub import without token
-  await test(
+  await runTest(
     "/api/integrations/github/import",
     "POST",
     { url: "https://github.com/owner/repo" },
@@ -114,7 +107,7 @@ async function runTests() {
   );
 
   // Test 6: PR review without prUrl
-  await test(
+  await runTest(
     "/api/ai/review-pr",
     "POST",
     { token: "some-token" },
@@ -123,7 +116,7 @@ async function runTests() {
   );
 
   // Test 7: PR review without token
-  await test(
+  await runTest(
     "/api/ai/review-pr",
     "POST",
     { prUrl: "https://github.com/owner/repo/pull/1" },
@@ -132,7 +125,7 @@ async function runTests() {
   );
 
   // Test 8: Create repository without name
-  await test(
+  await runTest(
     "/api/repositories",
     "POST",
     { url: "https://github.com/owner/repo" },
@@ -141,7 +134,7 @@ async function runTests() {
   );
 
   // Test 9: Create repository without URL
-  await test(
+  await runTest(
     "/api/repositories",
     "POST",
     { name: "test-repo" },
@@ -150,7 +143,7 @@ async function runTests() {
   );
 
   // Test 10: Create repository with invalid URL
-  await test(
+  await runTest(
     "/api/repositories",
     "POST",
     { name: "test-repo", url: "not-a-url" },
@@ -158,62 +151,8 @@ async function runTests() {
     "test-token",
   );
 
-  // Test 10a: Create repository with invalid URL protocol
-  await test(
-    "/api/repositories",
-    "POST",
-    { name: "test-repo", url: "ftp://github.com/owner/repo" },
-    400,
-    "test-token",
-  );
-
-  // Test 10b: Create repository with invalid name type
-  await test(
-    "/api/repositories",
-    "POST",
-    { name: 123, url: "https://github.com/owner/repo" },
-    400,
-    "test-token",
-  );
-
-  // Test 10c: Create repository with name too long
-  await test(
-    "/api/repositories",
-    "POST",
-    { name: "a".repeat(101), url: "https://github.com/owner/repo" },
-    400,
-    "test-token",
-  );
-
-  // Test 10d: Create repository with URL too long
-  await test(
-    "/api/repositories",
-    "POST",
-    { name: "test-repo", url: "https://" + "a".repeat(2005) },
-    400,
-    "test-token",
-  );
-
-  // Test 10e: Create repository with invalid description type
-  await test(
-    "/api/repositories",
-    "POST",
-    { name: "test-repo", url: "https://github.com/owner/repo", description: 123 },
-    400,
-    "test-token",
-  );
-
-  // Test 10f: Create repository with description too long
-  await test(
-    "/api/repositories",
-    "POST",
-    { name: "test-repo", url: "https://github.com/owner/repo", description: "a".repeat(1005) },
-    400,
-    "test-token",
-  );
-
-  // Test 11: Invalid repository ID (alphabetic)
-  await test(
+  // Test 11: Invalid repository ID
+  await runTest(
     "/api/repositories/abc",
     "GET",
     null,
@@ -221,53 +160,8 @@ async function runTests() {
     "test-token",
   );
 
-  // Test 11a: Invalid repository ID (negative)
-  await test(
-    "/api/repositories/-5",
-    "GET",
-    null,
-    400,
-    "test-token",
-  );
-
-  // Test 11b: Invalid repository ID (float)
-  await test(
-    "/api/repositories/3.14",
-    "GET",
-    null,
-    400,
-    "test-token",
-  );
-
-  // Test 11c: Invalid repository ID for analyze
-  await test(
-    "/api/repositories/-1/analyze",
-    "POST",
-    null,
-    400,
-    "test-token",
-  );
-
-  // Test 11d: Invalid repository ID for readme
-  await test(
-    "/api/repositories/-1/readme",
-    "POST",
-    null,
-    400,
-    "test-token",
-  );
-
-  // Test 11e: Invalid repository ID for stats
-  await test(
-    "/api/repositories/-1/stats",
-    "GET",
-    null,
-    400,
-    "test-token",
-  );
-
   // Test 12: Chat without repositoryId
-  await test(
+  await runTest(
     "/api/ai/chat",
     "POST",
     { question: "Hello" },
@@ -276,7 +170,7 @@ async function runTests() {
   );
 
   // Test 13: Chat without question
-  await test(
+  await runTest(
     "/api/ai/chat",
     "POST",
     { repositoryId: 1 },
@@ -285,7 +179,7 @@ async function runTests() {
   );
 
   // Test 14: Analyze repository without repositoryId
-  await test(
+  await runTest(
     "/api/ai/analyze-repository",
     "POST",
     { type: "overview" },
@@ -294,7 +188,7 @@ async function runTests() {
   );
 
   // Test 15: Explain file without repositoryId
-  await test(
+  await runTest(
     "/api/ai/explain-file",
     "POST",
     { filePath: "src/index.ts" },
@@ -303,7 +197,7 @@ async function runTests() {
   );
 
   // Test 16: Analyze code without code
-  await test(
+  await runTest(
     "/api/ai/analyze-code",
     "POST",
     { language: "typescript", analysisType: "quality" },

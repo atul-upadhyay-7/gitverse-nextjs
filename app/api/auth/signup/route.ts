@@ -1,70 +1,74 @@
+import { sanitizeError } from "@/lib/middleware";
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit } from "@/utils/rateLimit";
-import { checkRateLimit } from '@/utils/rateLimit';
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { generateToken } from "@/lib/auth";
+import { logger } from "@/lib/logger";
+import crypto from "crypto";
 
-import { parseJsonBody, validateEmail, validatePassword, validateRequiredString } from "@/lib/validateAuth";
-import { badRequestResponse } from "@/lib/middleware";
+const signupAttempts = new Map<string, { count: number; resetTime: number }>();
+
+const MAX_SIGNUPS = 3;
+const WINDOW_MS = 60 * 60 * 1000;
+
+function getClientIp(request: NextRequest) {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function isRateLimited(ip: string) {
+  const now = Date.now();
+  const record = signupAttempts.get(ip);
+
+  if (!record || now > record.resetTime) {
+    signupAttempts.set(ip, { count: 1, resetTime: now + WINDOW_MS });
+    return false;
+  }
+
+  if (record.count >= MAX_SIGNUPS) {
+    return true;
+  }
+
+  record.count += 1;
+  signupAttempts.set(ip, record);
+  return false;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const parsed = await parseJsonBody(request);
-    if ("error" in parsed) return badRequestResponse(parsed.error);
-    const { body } = parsed;
-    // 1. EXTRACT IP AND CHECK RATE LIMIT FIRST
-        const forwardedFor = request.headers.get('x-forwarded-for');
-        const ip = forwardedFor?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown-ip';
-        
-        const rateLimitResult = checkRateLimit(ip);
+    const ip = getClientIp(request);
 
-    if (!rateLimitResult.success) {
+    if (isRateLimited(ip)) {
       return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { 
-          status: 429, 
-          headers: {
-            'Retry-After': rateLimitResult.retryAfter?.toString() || '900'
-          }
-        }
+        { error: "Too many signup attempts. Please try again later." },
+        { status: 429 }
       );
     }
-    
-    //2. PARSE BODY
+
     const body = await request.json();
     const { email, password, name } = body;
 
-    const emailCheck = validateEmail(body.email);
-    if (!emailCheck.valid) return badRequestResponse(emailCheck.error!);
+    if (!email || !password || !name) {
+      return NextResponse.json(
+        { error: "Email, password, and name are required" },
+        { status: 400 }
+      );
+    }
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
 
-    const passwordCheck = validatePassword(body.password);
-    if (!passwordCheck.valid) return badRequestResponse(passwordCheck.error!);
-
-    const nameCheck = validateRequiredString(body.name, "Name");
-    if (!nameCheck.valid) return badRequestResponse(nameCheck.error!);
-
-    const email = body.email as string;
-    const password = body.password as string;
-    const name = body.name as string;
     if (password.length < 6) {
       return NextResponse.json(
         { error: "Password must be at least 6 characters" },
         { status: 400 }
       );
     }
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Please provide a valid email address" },
-        { status: 400 }
-      );
-    }
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -87,19 +91,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         passwordHash: hashedPassword,
         name,
       },
     });
 
-    // Generate JWT token
     const token = generateToken({ userId: user.id, email: user.email });
 
     return NextResponse.json(
@@ -114,12 +115,17 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
-    console.error("Signup error:", error);
+  } catch (error: any) {
+    const rawIp = getClientIp(request);
+    let ipFingerprint = "unknown";
+    if (rawIp !== "unknown") {
+      const secret = process.env.NEXTAUTH_SECRET || "fallback_secret";
+      ipFingerprint = crypto.createHmac("sha256", secret).update(rawIp).digest("hex").substring(0, 16);
+    }
+    logger.error({ err: sanitizeError(error), ipFingerprint }, "Signup error");
     return NextResponse.json(
-      { error: "An unexpected error occurred" },
+      { error: "Internal server error" },
       { status: 500 }
     );
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
