@@ -435,7 +435,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
     sm:translate-x-[-250px] sm:translate-y-[-250px]
   "
           style={{
-            opacity: 1, // control with state later
+            opacity: 0, // control with state later
             backgroundColor: "rgba(0, 0, 0, 0.9)",
             color: "white",
             zIndex: 9999,
