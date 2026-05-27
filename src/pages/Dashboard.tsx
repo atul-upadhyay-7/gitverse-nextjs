@@ -4,7 +4,9 @@ export const dynamic = "force-dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { isValidGithubUrl } from "@/lib/utils/validators";
 import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isValidGithubUrl } from "@/lib/utils/validators";
 import { RecentReposList } from "@/components/RecentReposList";
 import { useRecentRepos } from "@/hooks/useRecentRepos";
 import {
@@ -74,7 +76,7 @@ export default function Dashboard() {
         active instanceof HTMLSelectElement ||
         (active instanceof HTMLElement && active.isContentEditable);
 
-      if (e.key === "/" && !isTyping) {
+      if ((e.key === "/" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k")) && !isTyping) {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -230,8 +232,7 @@ export default function Dashboard() {
       // Extract owner and name for recent storage
       const cleanUrl = repoUrl.trim().replace(/\/$/, "").replace(/\.git$/, "");
       const cleanParts = cleanUrl.split("/");
-      const repoName = cleanParts[cleanParts.length - 1] || "";
-      const repoOwner = cleanParts[cleanParts.length - 2] || "unknown";
+      const ownerName = cleanParts[cleanParts.length - 2] || "unknown";
 
       const response = await axios.post(
         buildApiUrl("/api/repositories"),
@@ -248,7 +249,7 @@ export default function Dashboard() {
 
       // Add to recent repositories locally
       addRepo({
-        owner: repoOwner,
+        owner: ownerName,
         name: repoName,
         url: repoUrl.trim(),
       });
@@ -390,11 +391,13 @@ if (loading) {
             <div className="flex flex-col sm:flex-row gap-3">
               <Input
                 type="url"
+                ref={searchRef}
                 placeholder="https://github.com/username/repository"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
-                className="flex-1 bg-background/50"
+                className="flex-1 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                 onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+                aria-label="Repository URL to analyze"
               />
               <Button
                 onClick={handleAnalyze}
