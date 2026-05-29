@@ -52,7 +52,6 @@ interface RepositoryData {
   name?: string;
   url?: string;
   files?: FileData[];
-  url?: string;
 }
 
 interface FileNode {
@@ -199,6 +198,10 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
   const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
   const [selectedCodeContext, setSelectedCodeContext] = useState("");
   const [floatingButtonPos, setFloatingButtonPos] = useState<{ top: number; left: number } | null>(null);
+  const [isExplanationOpen, setIsExplanationOpen] = useState(false);
+  const [explainingFilePath, setExplainingFilePath] = useState<string | null>(null);
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
   
   const codeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -347,6 +350,35 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
     setFileContent(null);
     setIsAIPanelOpen(false);
     setFloatingButtonPos(null);
+  };
+
+  const handleExplainSelect = (filePath: string) => {
+    setExplainingFilePath(filePath);
+    setIsExplanationOpen(true);
+    setExplanationLoading(true);
+    setExplanation(null);
+
+    const token = localStorage.getItem("auth_token");
+    const owner = repository?.name?.split("/")?.[0] || "";
+    const repoName = repository?.name?.split("/")?.[1] || "";
+
+    fetch(buildApiUrl(`/repositories/${owner}/${repoName}/explain-file`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ filePath }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setExplanation(data.explanation || data.content || "No explanation available.");
+        setExplanationLoading(false);
+      })
+      .catch(() => {
+        setExplanation("Failed to load explanation.");
+        setExplanationLoading(false);
+      });
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {

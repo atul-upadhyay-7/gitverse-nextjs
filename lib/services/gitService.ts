@@ -5,6 +5,9 @@ import {
   type SpawnOptions,
 } from "child_process";
 import { promisify } from "util";
+
+const execPromise = promisify(exec);
+const DEFAULT_EXEC_OPTIONS: ExecOptions = {};
 import * as path from "path";
 import * as fs from "fs/promises";
 import { createReadStream } from "fs";
@@ -40,9 +43,17 @@ function countLinesReadStream(filePath: string): Promise<number> {
 
 function spawnOutput(
   command: string,
+  args: string | string[] | ExecOptions & { signal?: AbortSignal } = [],
   options: ExecOptions & { signal?: AbortSignal } = {},
 ): Promise<{ stdout: string; stderr: string }> {
-  return execPromiseRaw(command, {
+  if (typeof args === "object" && !Array.isArray(args)) {
+    options = args;
+    args = [];
+  }
+  const cmdStr = Array.isArray(args) && args.length > 0
+    ? command + " " + args.join(" ")
+    : command;
+  return execPromise(cmdStr, {
     ...DEFAULT_EXEC_OPTIONS,
     ...options,
     signal: options.signal,

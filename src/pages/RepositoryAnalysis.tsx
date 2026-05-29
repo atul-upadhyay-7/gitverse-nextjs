@@ -120,7 +120,9 @@ export default function RepositoryAnalysis() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const pollingJobRef = useRef<string | null>(null);
+  const pollingStartedAt = useRef<number | null>(null);
 
   useEffect(() => {
     fetchRepository();

@@ -31,6 +31,24 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const graphAnalyzer = new GraphAnalyzer();
   const graphData = graphAnalyzer.buildDependencyGraph(repository?.files || []);
 
+  const handleZoomIn = () => {
+    if (!svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.transition().duration(300).call(zoomRef.current.scaleBy, 1.3);
+  };
+
+  const handleZoomOut = () => {
+    if (!svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.transition().duration(300).call(zoomRef.current.scaleBy, 0.7);
+  };
+
+  const handleReset = () => {
+    if (!svgRef.current) return;
+    const svg = d3.select(svgRef.current);
+    svg.transition().duration(300).call(zoomRef.current.transform, d3.zoomIdentity);
+  };
+
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
 
@@ -283,6 +301,7 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
         g.attr("transform", event.transform);
       });
 
+    zoomRef.current = zoom;
     svg.call(zoom as any);
 
     // Animate nodes on load

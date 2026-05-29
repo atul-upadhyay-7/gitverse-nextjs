@@ -3,13 +3,15 @@ import {
   normalizeTargetDirectory,
 } from "@/lib/utils/repositoryUtils";
 import { NextRequest, NextResponse } from "next/server";
-import { isHttpError, requireAuth, sanitizeError } from "@/lib/middleware";
+import { isHttpError, requireAuth, sanitizeError, getPrismaErrorResponse } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
 import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
 import { GitService } from "@/lib/services/gitService";
 import { logger } from "@/lib/logger";
 import { apiError, apiSuccess } from "@/lib/utils/apiResponse";
+import { getEphemeralSecret } from "@/lib/utils/analysisRunner";
+import { isValidGitScope } from "@/lib/utils/validators";
 function kickLocalRunner(request: NextRequest) {
   if (process.env.NODE_ENV === "production") return;
   const origin = new URL(request.url).origin;
@@ -156,6 +158,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limitParam = searchParams.get("limit");
     const cursorParam = searchParams.get("cursor");
+
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined;
+
+    const repositories = await repositoryService.listRepositories(
+      user.userId,
+      limit,
+      cursor
+    );
 
     return apiSuccess({ repositories });
   } catch (error: any) {

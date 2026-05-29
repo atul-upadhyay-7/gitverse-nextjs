@@ -5,7 +5,7 @@ import {
   registerUnhandledRejectionLogger,
 } from "@/lib/utils/analysisRunner";
 import { analysisJobService } from "@/lib/services/analysisJobService";
-import { repositoryService } from "@/lib/services/repositoryService";
+import { repositoryService, RepositoryAnalysisProgress } from "@/lib/services/repositoryService";
 
 export const runtime = "nodejs";
 
@@ -60,8 +60,8 @@ async function runOnce(request: NextRequest): Promise<NextResponse> {
       },
     });
 
-    await repositoryService.analyzeRepository(job.repositoryId, {
-      onProgress: async (update) => {
+    await repositoryService.analyzeRepository(job.repositoryId, job.userId, {
+      onProgress: async (update: RepositoryAnalysisProgress) => {
         await analysisJobService.updateProgress({
           jobId: job.id,
           workerId,
