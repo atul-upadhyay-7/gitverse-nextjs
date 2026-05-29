@@ -24,7 +24,8 @@
     "test:validation": "tsx scripts/test-validation.ts",
     "test:e2e": "playwright test",
     "test": "jest",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
