@@ -11,6 +11,7 @@ export interface CodeAnalysisRequest {
 }
 
 export interface RepositoryContext {
+  id?: number;
   name: string;
   description?: string;
   languages: string[];
@@ -66,7 +67,11 @@ User Question: ${message}
           "Content-Type": "application/json",
           ...this.getAuthHeaders(),
         },
-        body: JSON.stringify({ prompt: enhancedMessage, messages: history }),
+        body: JSON.stringify({ 
+          repositoryId: context?.id ? Number(context.id) : undefined, 
+          prompt: enhancedMessage, 
+          messages: history 
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
