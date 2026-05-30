@@ -34,12 +34,16 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
 
-    setTimeout(() => {
-      setCopied(false);
-    }, 2000);
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to copy code:", error);
+    }
   };
 
   return (
@@ -47,6 +51,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={handleCopy}
       className="absolute top-2 right-2 p-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
       title="Copy code"
+      aria-label="Copy code to clipboard"
     >
       {copied ? (
         <Check className="h-4 w-4 text-green-400" />
