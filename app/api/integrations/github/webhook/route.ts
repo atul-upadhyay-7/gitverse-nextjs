@@ -7,7 +7,7 @@ import { getClientIp } from "@/lib/services/rateLimitService";
 
 export const runtime = "nodejs";
 
-type PullRequestWebhookPayload = {
+type WebhookPayload = {
   action?: string;
   installation?: { id?: number };
   repository?: {
@@ -18,6 +18,12 @@ type PullRequestWebhookPayload = {
     number?: number;
     html_url?: string;
     draft?: boolean;
+  };
+  issue?: {
+    number?: number;
+    title?: string;
+    body?: string;
+    html_url?: string;
   };
   sender?: {
     type?: string;
@@ -32,6 +38,10 @@ function shouldHandlePullRequestAction(action: string | undefined): boolean {
     action === "synchronize" ||
     action === "ready_for_review"
   );
+}
+
+function shouldHandleIssueAction(action: string | undefined): boolean {
+  return action === "opened";
 }
 
 export async function POST(request: NextRequest) {
@@ -58,14 +68,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  if (event !== "pull_request") {
+  if (event !== "pull_request" && event !== "issues") {
     return NextResponse.json(
       { ok: true, ignored: true, event },
       { status: 200 },
     );
   }
 
-  let payload: PullRequestWebhookPayload;
+  let payload: WebhookPayload;
   try {
     payload = JSON.parse(rawBody);
   } catch {
@@ -73,19 +83,28 @@ export async function POST(request: NextRequest) {
   }
 
   const action = payload.action;
-  if (!shouldHandlePullRequestAction(action)) {
-    return NextResponse.json(
-      { ok: true, ignored: true, action },
-      { status: 200 },
-    );
-  }
-
-  // Ignore draft PRs until they become ready_for_review
-  if (payload.pull_request?.draft && action !== "ready_for_review") {
-    return NextResponse.json(
-      { ok: true, ignored: true, reason: "draft" },
-      { status: 200 },
-    );
+  
+  if (event === "pull_request") {
+    if (!shouldHandlePullRequestAction(action)) {
+      return NextResponse.json(
+        { ok: true, ignored: true, action },
+        { status: 200 },
+      );
+    }
+    // Ignore draft PRs until they become ready_for_review
+    if (payload.pull_request?.draft && action !== "ready_for_review") {
+      return NextResponse.json(
+        { ok: true, ignored: true, reason: "draft" },
+        { status: 200 },
+      );
+    }
+  } else if (event === "issues") {
+    if (!shouldHandleIssueAction(action)) {
+      return NextResponse.json(
+        { ok: true, ignored: true, action },
+        { status: 200 },
+      );
+    }
   }
 
   // Avoid replying to bots (including ourselves)
@@ -98,7 +117,7 @@ export async function POST(request: NextRequest) {
 
   const owner = payload.repository?.owner?.login;
   const repo = payload.repository?.name;
-  const number = payload.pull_request?.number;
+  const number = payload.pull_request?.number || payload.issue?.number;
   const installationId = payload.installation?.id;
 
   if (!owner || !repo || !number || !installationId) {
