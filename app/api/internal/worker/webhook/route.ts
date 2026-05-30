@@ -13,6 +13,8 @@ import { QuotaService } from "@/lib/services/quotaService";
 import { IssueTriageService } from "@/lib/services/issue-triage";
 import { ImpactAnalysisService } from "@/lib/services/impact-analysis";
 import { SelfHealingService } from "@/lib/services/self-healing";
+import { secretDetector } from "@/lib/services/secret-detector";
+import { securityAlerts } from "@/lib/services/security-alerts";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
@@ -231,6 +233,24 @@ export async function POST(request: NextRequest) {
       }
       throw e;
     }
+
+    // --- SECRET DETECTION PIPELINE ---
+    try {
+      const prFiles = await github.getPullRequestFiles(owner, repo, number);
+      const allSecrets = [];
+      for (const file of prFiles) {
+        if (!file.patch) continue;
+        const fileSecrets = await secretDetector.scanFile(file.filename, file.patch);
+        allSecrets.push(...fileSecrets);
+      }
+
+      if (allSecrets.length > 0) {
+        await securityAlerts.handleExposure(String(enabledRepo.id), headSha, allSecrets, number);
+      }
+    } catch (secretError) {
+      console.error("Secret detection pipeline failed:", secretError);
+    }
+    // ---------------------------------
 
     try {
       const { review, prUrl, tokensConsumed } = await reviewPullRequest({
