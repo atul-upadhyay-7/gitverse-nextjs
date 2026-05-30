@@ -1,10 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { GitBranch, Menu, X } from 'lucide-react'
 import { Button, ThemeToggle } from '@/components/ui'
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    const styleTag = document.getElementById("navbar-inline-css");
+    if (styleTag) styleTag.remove();
+  }, []);
 
   const navLinks = [
     { name: 'Features', href: '#features' },
