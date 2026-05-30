@@ -512,6 +512,87 @@ export class GitHubService {
   }
 
   /**
+   * Fetch file content from repository
+   */
+  async getFileContent(owner: string, repo: string, path: string): Promise<string | null> {
+    try {
+      const response = await this.client.get(`/repos/${owner}/${repo}/contents/${path}`);
+      if (response.data && response.data.content) {
+        return Buffer.from(response.data.content, "base64").toString("utf-8");
+      }
+      return null;
+    } catch (error: any) {
+      if (error.response && error.response.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new branch
+   */
+  async createBranch(owner: string, repo: string, branch: string, sha: string): Promise<any> {
+    const response = await this.client.post(`/repos/${owner}/${repo}/git/refs`, {
+      ref: `refs/heads/${branch}`,
+      sha,
+    });
+    return response.data;
+  }
+
+  /**
+   * Create a new commit with a single file change
+   */
+  async createCommit(
+    owner: string, 
+    repo: string, 
+    path: string, 
+    message: string, 
+    content: string, 
+    branch: string,
+    sha: string
+  ): Promise<any> {
+    // 1. Get current file (to get its blob SHA)
+    let fileSha: string | undefined;
+    try {
+      const fileRes = await this.client.get(`/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
+      fileSha = fileRes.data.sha;
+    } catch (e: any) {
+      // If file doesn't exist yet, fileSha is undefined
+    }
+
+    // 2. Update file
+    const response = await this.client.put(`/repos/${owner}/${repo}/contents/${path}`, {
+      message,
+      content: Buffer.from(content).toString("base64"),
+      branch,
+      sha: fileSha
+    });
+    
+    return response.data;
+  }
+
+  /**
+   * Create a Pull Request
+   */
+  async createPullRequest(
+    owner: string, 
+    repo: string, 
+    title: string, 
+    body: string, 
+    head: string, 
+    base: string
+  ): Promise<any> {
+    const response = await this.client.post(`/repos/${owner}/${repo}/pulls`, {
+      title,
+      body,
+      head,
+      base,
+    });
+    return response.data;
+  }
+
+  /**
    * Search repositories
    */
   async searchRepositories(
