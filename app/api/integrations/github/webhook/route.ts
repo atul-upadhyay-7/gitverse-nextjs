@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyGitHubWebhookSignature } from "@/lib/utils/githubWebhook";
 import prisma from "@/lib/prisma";
 import crypto from "crypto";
+import { QuotaService } from "@/lib/services/quotaService";
+import { getClientIp } from "@/lib/services/rateLimitService";
 
 export const runtime = "nodejs";
 
@@ -33,6 +35,13 @@ function shouldHandlePullRequestAction(action: string | undefined): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  // 1. IP-based Rate Limiter (60 requests per minute per IP)
+  const clientIp = getClientIp(request);
+  const isIpAllowed = await QuotaService.checkWebhookRateLimit(`webhook_ip_${clientIp}`, 60, 60000);
+  if (!isIpAllowed) {
+    return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+  }
+
   const rawBody = await request.text();
 
   const signature = request.headers.get("x-hub-signature-256");
@@ -100,6 +109,12 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  // 2. Installation-based Rate Limiter (30 requests per minute per installation)
+  const isInstAllowed = await QuotaService.checkWebhookRateLimit(`webhook_inst_${installationId}`, 30, 60000);
+  if (!isInstAllowed) {
+    return NextResponse.json({ error: "Too Many Requests for Installation" }, { status: 429 });
   }
 
   // Store webhook event for async processing

@@ -9,6 +9,7 @@ import {
 import { isAxiosError } from "axios";
 import { sanitizeError } from "@/lib/middleware";
 import crypto from "crypto";
+import { QuotaService } from "@/lib/services/quotaService";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
@@ -110,8 +111,38 @@ export async function POST(request: NextRequest) {
 
     const app = new GitHubAppService();
     const installationToken = await app.getInstallationAccessToken(installationId);
-
     const github = new GitHubService(installationToken);
+
+    // 1. AI Kill Switch Check
+    if (process.env.DISABLE_AI_ANALYSIS === "true") {
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "completed", error: "AI analysis is globally disabled" },
+      });
+      return NextResponse.json({ ok: true, ignored: true, reason: "ai_disabled" });
+    }
+
+    // 2. Installation Quota Enforcement
+    const hasQuota = await QuotaService.checkAndReserveQuota(BigInt(installationId));
+    if (!hasQuota) {
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "rate_limited", error: "AI usage quota exhausted" },
+      });
+
+      const warningPosted = await QuotaService.hasWarningBeenPosted(BigInt(installationId));
+      if (!warningPosted) {
+        const comment = "⚠️ **GitVerse AI Quota Exhausted**\n\nThe AI analysis quota has been temporarily exhausted for this installation. Automatic PR reviews will resume when the quota window resets.";
+        try {
+          await github.postPullRequestComment(owner, repo, number, comment);
+          await QuotaService.markWarningPosted(BigInt(installationId));
+        } catch (e) {
+          console.error("Failed to post quota warning comment:", e);
+        }
+      }
+      return NextResponse.json({ ok: true, ignored: true, reason: "quota_exhausted" });
+    }
+
     const pr = await github.getPullRequest(owner, repo, number);
     const headSha = pr?.head?.sha;
     if (!headSha) {
@@ -168,12 +199,16 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const { review, prUrl } = await reviewPullRequest({
+      const { review, prUrl, tokensConsumed } = await reviewPullRequest({
         owner,
         repo,
         number,
         githubToken: installationToken,
       });
+
+      if (tokensConsumed) {
+        await QuotaService.recordTokenUsage(BigInt(installationId), tokensConsumed);
+      }
 
       const comment = formatPRReviewMarkdown({ review, prUrl });
       let postedUrl: string | null = null;
