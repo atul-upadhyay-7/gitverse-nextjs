@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, sanitizeError, isHttpError } from "@/lib/middleware";
+import { sanitizeError, isHttpError } from "@/lib/middleware";
 import {
   createReviewPolicy,
   listReviewPolicies,
@@ -8,10 +8,10 @@ import {
   type ReviewPolicyRule,
 } from "@/lib/services/reviewPolicyService";
 import prisma from "@/lib/prisma";
+import { enforceRepositoryPermission } from "@/middleware/repository-permissions";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const repositoryId = searchParams.get("repositoryId");
 
@@ -22,20 +22,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify repository ownership
-    const repository = await prisma.repository.findFirst({
-      where: { id: Number(repositoryId), userId: user.userId },
-      select: { id: true },
-    });
-
-    if (!repository) {
-      return NextResponse.json(
-        { error: "Repository not found" },
-        { status: 404 }
-      );
+    const permission = await enforceRepositoryPermission(request, Number(repositoryId), 'read');
+    if (!permission.allowed && permission.errorResponse) {
+      return permission.errorResponse;
     }
 
-    const policies = await listReviewPolicies(repository.id);
+    const policies = await listReviewPolicies(Number(repositoryId));
     return NextResponse.json({ policies }, { status: 200 });
   } catch (error: any) {
     console.error("Review policies query error:", sanitizeError(error));
@@ -56,7 +48,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
     const body = await request.json();
     const { repositoryId, name, description, rules } = body;
 
@@ -90,21 +81,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify repository ownership
-    const repository = await prisma.repository.findFirst({
-      where: { id: Number(repositoryId), userId: user.userId },
-      select: { id: true },
-    });
-
-    if (!repository) {
-      return NextResponse.json(
-        { error: "Repository not found" },
-        { status: 404 }
-      );
+    const permission = await enforceRepositoryPermission(request, Number(repositoryId), 'write');
+    if (!permission.allowed && permission.errorResponse) {
+      return permission.errorResponse;
     }
 
     const policy = await createReviewPolicy({
-      repositoryId: repository.id,
+      repositoryId: Number(repositoryId),
       name,
       description,
       rules: rules as ReviewPolicyRule[],
@@ -130,7 +113,6 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
     const body = await request.json();
     const { policyId, repositoryId, name, description, rules, enabled } = body;
 
@@ -166,22 +148,14 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Verify repository ownership
-    const repository = await prisma.repository.findFirst({
-      where: { id: Number(repositoryId), userId: user.userId },
-      select: { id: true },
-    });
-
-    if (!repository) {
-      return NextResponse.json(
-        { error: "Repository not found" },
-        { status: 404 }
-      );
+    const permission = await enforceRepositoryPermission(request, Number(repositoryId), 'write');
+    if (!permission.allowed && permission.errorResponse) {
+      return permission.errorResponse;
     }
 
     const policy = await updateReviewPolicy({
       policyId: Number(policyId),
-      repositoryId: repository.id,
+      repositoryId: Number(repositoryId),
       name,
       description,
       rules,
@@ -215,7 +189,6 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const policyId = searchParams.get("policyId");
     const repositoryId = searchParams.get("repositoryId");
@@ -227,22 +200,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Verify repository ownership
-    const repository = await prisma.repository.findFirst({
-      where: { id: Number(repositoryId), userId: user.userId },
-      select: { id: true },
-    });
-
-    if (!repository) {
-      return NextResponse.json(
-        { error: "Repository not found" },
-        { status: 404 }
-      );
+    const permission = await enforceRepositoryPermission(request, Number(repositoryId), 'write');
+    if (!permission.allowed && permission.errorResponse) {
+      return permission.errorResponse;
     }
 
     const deleted = await deleteReviewPolicy({
       policyId: Number(policyId),
-      repositoryId: repository.id,
+      repositoryId: Number(repositoryId),
     });
 
     if (!deleted) {

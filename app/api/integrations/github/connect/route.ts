@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { GitHubService } from "@/lib/services/githubService";
 import { toJsonSafe } from "@/lib/utils/jsonSafe";
 import { encryptToken } from "@/lib/utils/tokenEncryption";
+import { RedactSensitiveFields } from "@/services/security/redact-sensitive-fields";
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,7 +49,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ account: toJsonSafe(account) }, { status: 200 });
+    return NextResponse.json(
+      RedactSensitiveFields.redact({ account: toJsonSafe(account) }),
+      { status: 200 },
+    );
   } catch (error: any) {
     console.error("GitHub connect error:", sanitizeError(error));
     if (isHttpError(error)) {
