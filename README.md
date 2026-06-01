@@ -357,7 +357,7 @@ firebase deploy
 Required:
 
 - `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - JWT secret key
+- JWT_SECRET - JWT signing secret. Used for session signing. The app may fail without this.
 - `GEMINI_API_KEY` - Google Gemini API key
 
 OAuth (Google / NextAuth):
@@ -370,7 +370,6 @@ OAuth (Google / NextAuth):
 
 Optional:
 
-- `JWT_SECRET` - JWT signing secret (fallback/alternate secret configuration)
 - `NEXT_PUBLIC_API_URL` - API URL for client-side (defaults to current domain)
 
 ## 🤝 Contributing
