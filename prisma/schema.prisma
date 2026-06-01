@@ -110,6 +110,7 @@ model PullRequest {
 
   repo    GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
   reviews PRReview[]
+  impactAnalyses PRImpactAnalysis[]
 
   @@unique([repoId, prNumber])
   @@index([repoId])
@@ -130,6 +131,23 @@ model PRReview {
   @@unique([pullRequestId, headSha])
   @@index([createdAt])
   @@map("pr_reviews")
+}
+
+model PRImpactAnalysis {
+  id              String      @id @default(uuid()) @db.Uuid
+  pullRequestId   Int         @map("pull_request_id")
+  headSha         String      @map("head_sha")
+  riskScore       Float?      @map("risk_score")
+  impactSummary   String      @map("impact_summary") @db.Text
+  breakingChanges Boolean     @default(false) @map("breaking_changes")
+  aiMetrics       Json?       @map("ai_metrics")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  pullRequest     PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  @@unique([pullRequestId, headSha])
+  @@index([pullRequestId])
+  @@map("pr_impact_analyses")
 }
 
 model Account {
