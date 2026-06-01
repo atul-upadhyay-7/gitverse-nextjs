@@ -132,8 +132,10 @@ export async function POST(request: NextRequest) {
     const rawIp = getClientIp(request);
     let ipFingerprint = "unknown";
     if (rawIp !== "unknown") {
-      const secret = process.env.NEXTAUTH_SECRET || "fallback_secret";
-      ipFingerprint = crypto.createHmac("sha256", secret).update(rawIp).digest("hex").substring(0, 16);
+      const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
+      if (secret) {
+        ipFingerprint = crypto.createHmac("sha256", secret).update(rawIp).digest("hex").substring(0, 16);
+      }
     }
     logger.error({ err: sanitizeError(error), ipFingerprint }, "Signup error");
     return NextResponse.json(
