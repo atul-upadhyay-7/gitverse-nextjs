@@ -657,7 +657,29 @@ export class GitService {
         if (line.includes("|") && !line.includes("\t")) {
           // Author line
           const [name, email, date] = line.split("|");
-          currentAuthor = { name, email, date: new Date(date) };
+          const commitDate = new Date(date);
+          currentAuthor = { name, email, date: commitDate };
+
+          const key = email;
+          const existing = contributorMap.get(key);
+
+          if (existing) {
+            existing.commits++;
+            existing.lastCommit =
+              commitDate > existing.lastCommit ? commitDate : existing.lastCommit;
+            existing.firstCommit =
+              commitDate < existing.firstCommit ? commitDate : existing.firstCommit;
+          } else {
+            contributorMap.set(key, {
+              name,
+              email,
+              commits: 1,
+              additions: 0,
+              deletions: 0,
+              firstCommit: commitDate,
+              lastCommit: commitDate,
+            });
+          }
         } else if (currentAuthor && line.includes("\t")) {
           // Stats line
           const [addStr, delStr] = line.split("\t");
@@ -668,27 +690,8 @@ export class GitService {
           const existing = contributorMap.get(key);
 
           if (existing) {
-            existing.commits++;
             existing.additions += additions;
             existing.deletions += deletions;
-            existing.lastCommit =
-              currentAuthor.date > existing.lastCommit
-                ? currentAuthor.date
-                : existing.lastCommit;
-            existing.firstCommit =
-              currentAuthor.date < existing.firstCommit
-                ? currentAuthor.date
-                : existing.firstCommit;
-          } else {
-            contributorMap.set(key, {
-              name: currentAuthor.name,
-              email: currentAuthor.email,
-              commits: 1,
-              additions,
-              deletions,
-              firstCommit: currentAuthor.date,
-              lastCommit: currentAuthor.date,
-            });
           }
         }
       }

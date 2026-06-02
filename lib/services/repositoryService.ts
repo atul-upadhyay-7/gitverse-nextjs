@@ -8,6 +8,8 @@ import { invalidateGeminiAnalysisCacheForRepository } from "./geminiAnalysisCach
 import { FileChangeType } from "@prisma/client";
 import { repoSyncLimiter } from "../utils/concurrencyLimiter";
 import { withDbRetry } from "../utils/dbRetry";
+import { gitverseConfigParser, ParsedRepositoryKnowledge } from "../parsers/gitverseConfigParser";
+import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
 
 function yieldIfHighMemory(threshold?: number): Promise<void> {
   if (threshold === undefined) {
@@ -161,15 +163,15 @@ export class RepositoryService {
     }
 
     const existingRepositoryName = await prisma.repository.findFirst({
-  where: {
-    name: input.name,
-    userId: input.userId,
-  },
-});
+      where: {
+        name: input.name,
+        userId: input.userId,
+      },
+    });
 
-if (existingRepositoryName) {
-  throw new Error("Repository with this name already exists");
-}
+    if (existingRepositoryName) {
+      throw new Error("Repository with this name already exists");
+    }
 
     const repository = await prisma.repository.create({
       data: {
@@ -271,22 +273,22 @@ if (existingRepositoryName) {
       checkAborted();
 
       await report({ progressPercent: 9, progressMessage: "Checking AI context configuration" });
-      
+
       let knowledgeJson: ParsedRepositoryKnowledge | undefined = undefined;
       let knowledgeMd: ParsedRepositoryKnowledge | undefined = undefined;
-      
+
       try {
         const jsonPath = path.join(tempDir, ".gitverse.json");
         const jsonContent = await fs.readFile(jsonPath, "utf8");
         knowledgeJson = gitverseConfigParser.parseJson(jsonContent);
       } catch (e) { /* Ignore missing or invalid */ }
-      
+
       try {
         const mdPath = path.join(tempDir, ".gitverse.md");
         const mdContent = await fs.readFile(mdPath, "utf8");
         knowledgeMd = gitverseConfigParser.parseMarkdown(mdContent);
       } catch (e) { /* Ignore missing or invalid */ }
-      
+
       const parsedKnowledge = gitverseConfigParser.mergeKnowledge(knowledgeJson, knowledgeMd);
 
       checkAborted();
@@ -548,7 +550,7 @@ if (existingRepositoryName) {
           },
         });
       });
-      
+
       // Save repository knowledge if found
       try {
         await repositoryKnowledgeService.upsertKnowledge(repositoryId, parsedKnowledge);
