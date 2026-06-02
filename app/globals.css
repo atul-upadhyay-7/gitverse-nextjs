@@ -260,6 +260,14 @@
     transform: translateY(-50%) scale(1.05);
   }
 
+  .feature-carousel__nav:focus-visible {
+    background: hsl(var(--card));
+    box-shadow: 0 8px 24px hsl(var(--primary) / 0.15);
+    transform: translateY(-50%) scale(1.05);
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
   .feature-carousel__nav--left {
     left: 0.75rem;
   }
