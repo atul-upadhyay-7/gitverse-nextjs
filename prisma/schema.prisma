@@ -234,9 +234,14 @@ model Repository {
   syncJobs            RepositorySyncJob[]
   lastSynchronizedAt  DateTime?             @map("last_synchronized_at")
 
+  // Index for cross-user URL lookups (e.g. admin queries, analytics)
   @@index([url])
+  // Index for fast listing of all repos belonging to a user
   @@index([userId])
+  // Composite index for duplicate-check query in createRepository (url + userId + targetDirectory)
   @@index([userId, url, targetDirectory])
+  // Composite index for name-uniqueness check in createRepository (name + userId)
+  @@index([userId, name])
   @@map("repositories")
 }
 
