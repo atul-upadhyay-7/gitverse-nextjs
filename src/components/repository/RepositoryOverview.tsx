@@ -34,6 +34,7 @@ import {
 import { BeginnerModeToggle } from "@/components/repository/BeginnerModeToggle";
 import { BeginnerGuidanceCard } from "@/components/repository/BeginnerGuidanceCard";
 import { BeginnerQuestionsPanel } from "@/components/repository/BeginnerQuestionsPanel";
+import { QuickStartChecklist } from "@/components/repository/QuickStartChecklist";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -616,6 +617,8 @@ export const RepositoryOverview = ({
             <BeginnerQuestionsPanel />
           </div>
         )}
+
+        <QuickStartChecklist />
       </div>
 
       {/* Repository Stats Grid */}
