@@ -8,6 +8,7 @@ import {
 } from "@/lib/utils/aiRequestValidation";
 import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
 import { getClientIp } from "@/lib/services/rateLimitService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 const COMPARE_RATE_LIMIT = 5;
 const COMPARE_WINDOW_MS = 60_000;
@@ -96,18 +97,20 @@ export async function POST(request: NextRequest) {
       const fileCount = repo.files?.length || 0;
       const contributorCount = repo.contributors?.length || 0;
 
-      return `Repository #${idx + 1}: "${repo.name}"
-- Description: ${repo.description || "N/A"}
-- Tech Stack/Languages: ${langText || "N/A"}
-- Stats: ${commitCount} commits, ${contributorCount} contributors, ${fileCount} files, ${repo.branches.length} branches
-- Branches: ${branchText || "N/A"}`;
+      return `Repository #${idx + 1}: ${wrapUntrustedInput(`repo_${idx}_name`, repo.name)}
+${wrapUntrustedInput(`repo_${idx}_description`, repo.description || "N/A")}
+${wrapUntrustedInput(`repo_${idx}_languages`, langText || "N/A")}
+Stats: ${commitCount} commits, ${contributorCount} contributors, ${fileCount} files, ${repo.branches.length} branches
+${wrapUntrustedInput(`repo_${idx}_branches`, branchText || "N/A")}`;
     }).join("\n\n");
 
-    const prompt = `You are a principal software architect assistant.
+    const prompt = `${buildSafetyPrefix()}
+
+You are a principal software architect assistant.
 You are comparing the following repositories side-by-side to help developers understand their architectures, tech stacks, use-cases, and how they relate or compare to each other.
 
 ===== REPOSITORIES FOR COMPARISON =====
-${reposContext}
+${wrapUntrustedInput("repositories_context", reposContext)}
 ======================================
 
 Please generate a professional, high-level comparison and benchmarking report. Use clean Markdown headings and bullet points. Make sure to cover:

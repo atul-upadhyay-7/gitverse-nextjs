@@ -5,6 +5,7 @@ import { RiskScorer } from "./riskScorer";
 import { GithubImpactReporter } from "./githubImpactReporter";
 import { getGeminiService } from "./geminiService";
 import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class PRImpactAnalysisService {
   public static async analyzePullRequest(githubToken: string, repoFullName: string, prNumber: number, pullRequestId: number, repoId: number): Promise<void> {
@@ -35,27 +36,25 @@ export class PRImpactAnalysisService {
 
       // 4. Construct AI Prompt
       const gemini = getGeminiService();
-      const prompt = `You are a strict architectural and dependency analysis expert. Analyze the following Pull Request changes and identify the impact, structural drift, and risks.
+      const prompt = `${buildSafetyPrefix()}
 
-Changed Files:
-${changedFilePaths.join("\n")}
+You are a strict architectural and dependency analysis expert. Analyze the following Pull Request changes and identify the impact, structural drift, and risks.
 
-Downstream Dependent Files:
-${impact.affectedFiles.join("\n")}
+${wrapUntrustedInput("changed_files", changedFilePaths.join("\n"))}
 
-Repository Architecture Principles (if any):
-${architecturePrinciples.length > 0 ? architecturePrinciples.map(p => `- ${p}`).join("\n") : "None provided."}
+${wrapUntrustedInput("downstream_dependents", impact.affectedFiles.join("\n"))}
 
-PR Diffs:
-${diffBlocks.substring(0, 20000)} // Cap diff size
+${wrapUntrustedInput("architecture_principles", architecturePrinciples.length > 0 ? architecturePrinciples.map(p => `- ${p}`).join("\n") : "None provided.")}
+
+${wrapUntrustedInput("pr_diffs", diffBlocks.substring(0, 20000))}
 
 Produce a JSON output strictly conforming to the following structure:
 {
   "impactSummary": "A concise summary of the PR's overall impact",
   "affectedModules": ["module1", "module2"],
-  "driftWarnings": ["warning1", "warning2"], // e.g. cross-layer violations, circular dependencies, breaking architecture principles
-  "dependencyRisks": ["risk1", "risk2"], // e.g. heavily depended on utilities modified
-  "recommendations": ["recommendation1"] // what reviewers should focus on
+  "driftWarnings": ["warning1", "warning2"],
+  "dependencyRisks": ["risk1", "risk2"],
+  "recommendations": ["recommendation1"]
 }
 Do not include any Markdown formatting like \`\`\`json. Return ONLY valid JSON.
 `;

@@ -1,6 +1,7 @@
 import { SecretDetectionResult, SecretProvider, SecretSeverity } from "../../types/security-secrets";
 import { entropyAnalysis } from "./entropy-analysis";
 import { GeminiService } from "./geminiService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 interface SecretPattern {
   provider: SecretProvider;
@@ -65,13 +66,13 @@ export class SecretDetectorService {
 
   private async verifyWithAI(filePath: string, lineContext: string, secret: string): Promise<boolean> {
     try {
-      const prompt = `Analyze this code snippet from file "${filePath}" to determine if the credential string is likely a dummy/fake value used for documentation/examples, or a real live secret.
+      const prompt = `${buildSafetyPrefix()}
 
-Code context:
-\`\`\`
-${lineContext}
-\`\`\`
-Secret: ${secret}
+Analyze this code snippet to determine if the credential string is likely a dummy/fake value used for documentation/examples, or a real live secret.
+
+${wrapUntrustedInput("file_path", filePath)}
+${wrapUntrustedInput("code_context", lineContext)}
+${wrapUntrustedInput("secret_value", secret)}
 
 Respond with only a JSON object: {"isDummy": boolean, "reason": "short explanation"}
 `;

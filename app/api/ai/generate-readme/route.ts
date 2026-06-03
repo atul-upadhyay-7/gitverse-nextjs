@@ -10,6 +10,7 @@ import {
 } from "@/lib/utils/aiRequestValidation";
 import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
 import { getClientIp } from "@/lib/services/rateLimitService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 const GENERATE_README_RATE_LIMIT = 5;
 const GENERATE_README_WINDOW_MS = 60_000;
@@ -131,21 +132,22 @@ export async function POST(request: NextRequest) {
       .map((l: any) => `${l.name} (${l.percentage}%)`)
       .join(", ");
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert technical writer and software developer. Generate a comprehensive, beautiful, and professional README.md for this repository.
 
 Repository Details:
-- Name: ${repository.name}
-- Description: ${repository.description || "No description provided."}
-- Primary Languages: ${languagesStr || "Unknown"}
-- Default Branch: ${repository.defaultBranch || "main"}
+${wrapUntrustedInput("repo_name", repository.name)}
+${wrapUntrustedInput("repo_description", repository.description || "No description provided.")}
+${wrapUntrustedInput("repo_languages", languagesStr || "Unknown")}
+${wrapUntrustedInput("repo_default_branch", repository.defaultBranch || "main")}
 
-${manifestFile ? `Manifest File Name: ${manifestFile}` : ""}
-${manifestContent ? `Manifest Content (to infer dependencies and setup):\n\`\`\`\n${manifestContent}\n\`\`\`` : ""}
+${manifestFile ? `Manifest File Name: ${wrapUntrustedInput("manifest_file", manifestFile)}` : ""}
+${manifestContent ? `Manifest Content (to infer dependencies and setup):\n\`\`\`\n${wrapUntrustedInput("manifest_content", manifestContent)}\n\`\`\`` : ""}
 
 File Structure (First ${MAX_FILE_TREE_COUNT} files):
 \`\`\`
-${fileTree}
+${wrapUntrustedInput("file_tree", fileTree)}
 \`\`\`
 
 Instructions:

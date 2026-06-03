@@ -1,6 +1,7 @@
 import { getGeminiService } from "@/lib/services/geminiService";
 import { PRReviewIssue } from "@/lib/services/prReviewService";
 import { SelfHealingPatch } from "../../types/self-healing";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class PatchGeneratorService {
   /**
@@ -14,21 +15,21 @@ export class PatchGeneratorService {
 
     const gemini = getGeminiService();
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert software engineer and security researcher.
 An automated code review has detected a high/critical issue in a pull request.
 Your task is to generate a fix for this issue that can be applied cleanly to the code.
 
-File: ${issue.file}
-Reported Issue around Line ${issue.line}:
-Title: ${issue.title}
-Category: ${issue.category}
-Explanation: ${issue.explanation}
-Suggestion: ${issue.suggestion}
+${wrapUntrustedInput("issue_file", issue.file || "N/A")}
+${wrapUntrustedInput("issue_title", issue.title)}
+${wrapUntrustedInput("issue_category", issue.category)}
+${wrapUntrustedInput("issue_explanation", issue.explanation)}
+${wrapUntrustedInput("issue_suggestion", issue.suggestion)}
 
 Here is the current content of the file:
 \`\`\`
-${fileContent}
+${wrapUntrustedInput("file_content", fileContent)}
 \`\`\`
 
 Generate a precise code replacement for the issue. You must specify the exact startLine and endLine of the replacement block, and provide the exact new code that should replace it.

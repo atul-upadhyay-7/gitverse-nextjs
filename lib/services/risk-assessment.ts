@@ -1,5 +1,6 @@
 import { getGeminiService } from "@/lib/services/geminiService";
 import { ImpactReport, RiskLevel } from "../../types/dependency-impact";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class RiskAssessmentService {
   /**
@@ -17,14 +18,13 @@ export class RiskAssessmentService {
     
     const affectedFilesStr = affectedFiles.join("\n- ");
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert software architect. Analyze the provided changed files and their downstream dependents to determine the risk level of the changes.
 
-Changed Files:
-${fileListStr}
+${wrapUntrustedInput("changed_files", fileListStr)}
 
-Downstream Dependents (Potentially Affected):
-- ${affectedFiles.length > 0 ? affectedFilesStr : "None"}
+${wrapUntrustedInput("downstream_dependents", affectedFiles.length > 0 ? affectedFilesStr : "None")}
 
 Evaluate whether these changes introduce breaking API changes, alter function signatures, remove exports, modify return types, or alter component props in a way that would break the downstream dependents.
 

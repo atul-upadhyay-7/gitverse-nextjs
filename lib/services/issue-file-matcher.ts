@@ -1,5 +1,6 @@
 import { getGeminiService } from "@/lib/services/geminiService";
 import { FileMatch } from "../../types/issue-triage";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class IssueFileMatcherService {
   /**
@@ -42,22 +43,22 @@ export class IssueFileMatcherService {
       candidatePaths = candidatePaths.slice(0, 50);
     }
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert codebase navigation AI. Given the following list of file paths in a repository:
-${candidatePaths.join("\n")}
+${wrapUntrustedInput("candidate_paths", candidatePaths.join("\n"))}
 
 And the following GitHub issue:
-Title: ${title}
-Body:
-${body}
+${wrapUntrustedInput("issue_title", title)}
+${wrapUntrustedInput("issue_body", body)}
 
 Identify up to 5 files that are most likely to need modification or review to resolve this issue.
 Return ONLY valid JSON matching this schema (no markdown formatting, no code fences):
 [
   {
-    "path": string, // The exact file path from the list above
-    "relevanceScore": number, // 0-100
-    "reasoning": string // Brief 1-sentence explanation of why this file is relevant
+    "path": string,
+    "relevanceScore": number,
+    "reasoning": string
   }
 ]
 `;

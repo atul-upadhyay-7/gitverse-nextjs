@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { getGeminiAnalysisCache, setGeminiAnalysisCache, hashGeminiPromptSeed } from "./geminiAnalysisCacheService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export interface AIAnalysisRequest {
   repositoryId: number;
@@ -251,14 +252,15 @@ export class GeminiService {
     deleted: string[];
     diff?: string;
   }): Promise<string[]> {
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 Generate 3 conventional commit messages for the following code changes:
 
-Added files: ${changes.added.join(", ") || "none"}
-Modified files: ${changes.modified.join(", ") || "none"}
-Deleted files: ${changes.deleted.join(", ") || "none"}
+${wrapUntrustedInput("added_files", changes.added.join(", ") || "none")}
+${wrapUntrustedInput("modified_files", changes.modified.join(", ") || "none")}
+${wrapUntrustedInput("deleted_files", changes.deleted.join(", ") || "none")}
 
-${changes.diff ? `Diff:\n${changes.diff.substring(0, 1000)}` : ""}
+${changes.diff ? `${wrapUntrustedInput("diff_content", changes.diff.substring(0, 1000))}` : ""}
 
 Format: type(scope): subject
 Examples: feat(auth): add login endpoint, fix(ui): resolve button alignment
@@ -290,38 +292,41 @@ Provide only the commit messages, one per line.
     type: string,
     context?: AIAnalysisRequest["context"],
   ): string {
+    const safeLanguages = wrapUntrustedInput("languages", context?.languages?.map((l) => `${l.name} (${l.percentage}%)`).join(", ") || "Unknown");
+    const safeFileTree = context?.fileTree ? wrapUntrustedInput("file_tree", context.fileTree) : "";
+
     const baseContext = `
 Repository Context:
-- Languages: ${context?.languages?.map((l) => `${l.name} (${l.percentage}%)`).join(", ") || "Unknown"}
+- Languages: ${safeLanguages}
 - Contributors: ${context?.contributors?.length || 0}
 - Recent commits: ${context?.commits?.length || 0}
-${context?.fileTree ? `\nFile Structure:\n${context.fileTree}\n` : ""}`;
+${safeFileTree ? `\nFile Structure:\n${safeFileTree}\n` : ""}`;
 
     let knowledgeContext = "";
     if (context?.knowledge) {
       knowledgeContext += `\nMaintainer Context (Highest Priority):\n`;
       if (context.knowledge.projectDescription) {
-        knowledgeContext += `Project Description: ${context.knowledge.projectDescription}\n`;
+        knowledgeContext += `Project Description: ${wrapUntrustedInput("project_description", context.knowledge.projectDescription)}\n`;
       }
       if (context.knowledge.architecturePrinciples?.length) {
-        knowledgeContext += `Architecture Principles:\n- ${context.knowledge.architecturePrinciples.join('\n- ')}\n`;
+        knowledgeContext += `Architecture Principles:\n- ${wrapUntrustedInput("architecture_principles", context.knowledge.architecturePrinciples.join('\n- '))}\n`;
       }
       if (context.knowledge.glossary && Object.keys(context.knowledge.glossary).length > 0) {
         knowledgeContext += `Glossary:\n`;
         Object.entries(context.knowledge.glossary).forEach(([k, v]) => {
-          knowledgeContext += `- ${k}: ${v}\n`;
+          knowledgeContext += `- ${k}: ${wrapUntrustedInput(`glossary_${k}`, v)}\n`;
         });
       }
       if (context.knowledge.onboardingNotes?.length) {
-        knowledgeContext += `Onboarding Notes:\n- ${context.knowledge.onboardingNotes.join('\n- ')}\n`;
+        knowledgeContext += `Onboarding Notes:\n- ${wrapUntrustedInput("onboarding_notes", context.knowledge.onboardingNotes.join('\n- '))}\n`;
       }
     }
     
     const scopeNote = (context as any)?.targetDirectory
-      ? `\nImportant: Restrict your analysis to the target directory (${(context as any).targetDirectory}). Only reference files outside this directory if they are immediately required dependencies.\n`
+      ? `\nImportant: Restrict your analysis to the target directory (${wrapUntrustedInput("target_directory", (context as any).targetDirectory)}). Only reference files outside this directory if they are immediately required dependencies.\n`
       : "";
 
-    const fullContext = `${knowledgeContext}${baseContext}${scopeNote}`;
+    const fullContext = `${buildSafetyPrefix()}\n\n${knowledgeContext}${baseContext}${scopeNote}`;
 
     switch (type) {
       case "overview":
@@ -416,7 +421,8 @@ You are an expert software architect analyzing an established codebase. Based on
     analysisType: string,
     context?: string,
   ): string {
-    const basePrompt = `Language: ${language}\n${context ? `Context: ${context}\n` : ""}\n\nCode:\n\`\`\`${language}\n${code}\n\`\`\`\n\n`;
+    const basePrompt = `${buildSafetyPrefix()}
+Language: ${language}\n${context ? `${wrapUntrustedInput("user_context", context)}\n` : ""}\n\nCode:\n\`\`\`${language}\n${wrapUntrustedInput("code_content", code)}\n\`\`\`\n\n`;
 
     switch (analysisType) {
       case "explain":
@@ -474,27 +480,28 @@ Provide refactored code examples.`;
     conversationHistory?: Array<{ role: string; content: string }>,
     context?: AIRepositoryChatRequest["context"],
   ): string {
-    let prompt =
-      "You are an expert code analyst helping developers understand their repository.\n\n";
+    let prompt = `${buildSafetyPrefix()}
+
+You are an expert code analyst helping developers understand their repository.\n\n`;
 
     if (context) {
       prompt += "Repository Context:\n";
       if (context.files?.length) {
-        prompt += `Files: ${context.files.slice(0, 10).join(", ")}${context.files.length > 10 ? "..." : ""}\n`;
+        prompt += `Files: ${wrapUntrustedInput("repo_files", context.files.slice(0, 10).join(", "))}${context.files.length > 10 ? "..." : ""}\n`;
       }
       if (context.recentCommits?.length) {
-        prompt += `Recent commits:\n${context.recentCommits.slice(0, 5).join("\n")}\n`;
+        prompt += `Recent commits:\n${wrapUntrustedInput("recent_commits", context.recentCommits.slice(0, 5).join("\n"))}\n`;
       }
       if (context.contributors?.length) {
-        prompt += `Contributors: ${context.contributors.slice(0, 5).join(", ")}\n`;
+        prompt += `Contributors: ${wrapUntrustedInput("contributors", context.contributors.slice(0, 5).join(", "))}\n`;
       }
       if (context.knowledge) {
         prompt += `\nMaintainer Context (Highest Priority):\n`;
         if (context.knowledge.projectDescription) {
-          prompt += `Project Description: ${context.knowledge.projectDescription}\n`;
+          prompt += `Project Description: ${wrapUntrustedInput("project_description", context.knowledge.projectDescription)}\n`;
         }
         if (context.knowledge.architecturePrinciples?.length) {
-          prompt += `Architecture Principles:\n- ${context.knowledge.architecturePrinciples.join('\n- ')}\n`;
+          prompt += `Architecture Principles:\n- ${wrapUntrustedInput("architecture_principles", context.knowledge.architecturePrinciples.join('\n- '))}\n`;
         }
         if (context.knowledge.glossary && Object.keys(context.knowledge.glossary).length > 0) {
           prompt += `Glossary:\n`;
@@ -503,7 +510,7 @@ Provide refactored code examples.`;
           });
         }
         if (context.knowledge.onboardingNotes?.length) {
-          prompt += `Onboarding Notes:\n- ${context.knowledge.onboardingNotes.join('\n- ')}\n`;
+          prompt += `Onboarding Notes:\n- ${wrapUntrustedInput("onboarding_notes", context.knowledge.onboardingNotes.join('\n- '))}\n`;
         }
       }
       prompt += "\n";
@@ -512,12 +519,12 @@ Provide refactored code examples.`;
     if (conversationHistory?.length) {
       prompt += "Previous conversation:\n";
       conversationHistory.forEach((msg) => {
-        prompt += `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}\n`;
+        prompt += `${msg.role === "user" ? "User" : "Assistant"}: ${wrapUntrustedInput("conversation_message", msg.content)}\n`;
       });
       prompt += "\n";
     }
 
-    prompt += `User question: ${question}\n\nProvide a helpful, accurate response based on the repository context.`;
+    prompt += `User question: ${wrapUntrustedInput("user_question", question)}\n\nProvide a helpful, accurate response based on the repository context.`;
 
     return prompt;
   }

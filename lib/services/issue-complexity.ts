@@ -1,24 +1,25 @@
 import { getGeminiService } from "@/lib/services/geminiService";
 import { ComplexityEstimation } from "../../types/issue-triage";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class IssueComplexityService {
   /**
    * Estimates the complexity and difficulty of an issue based on its content.
    */
   async estimateComplexity(title: string, body: string): Promise<ComplexityEstimation> {
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert senior engineering manager. Analyze the following GitHub issue and estimate its complexity and difficulty for a contributor.
 
-Issue Title: ${title}
-Issue Body:
-${body}
+${wrapUntrustedInput("issue_title", title)}
+${wrapUntrustedInput("issue_body", body)}
 
 Return ONLY valid JSON matching this schema (no markdown formatting, no code fences):
 {
   "complexity": "XS" | "S" | "M" | "L" | "XL",
-  "contributorDifficulty": string, // E.g. "Beginner", "Intermediate", "Advanced", "Expert"
-  "beginnerFriendly": boolean, // true if this is suitable for a first-time contributor
-  "confidence": number // 0-100 indicating how confident you are in this estimation
+  "contributorDifficulty": string,
+  "beginnerFriendly": boolean,
+  "confidence": number
 }
 `;
 

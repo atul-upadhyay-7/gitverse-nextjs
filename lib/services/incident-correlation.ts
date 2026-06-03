@@ -1,5 +1,6 @@
 import { getGeminiService } from "./geminiService";
 import { IncidentPayload, IncidentCorrelation } from "@/types/incident-response";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class IncidentCorrelationService {
   /**
@@ -11,31 +12,32 @@ export class IncidentCorrelationService {
   ): Promise<IncidentCorrelation> {
     console.log(`[IncidentCorrelation] Starting correlation for incident: ${incident.title}`);
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are a site reliability engineer and an expert code analyst.
 An incident has occurred in production. Please analyze the incident details and the recent repository context to identify the most likely root cause.
 
 Incident Details:
-- Title: ${incident.title}
-- Severity: ${incident.severity}
-- Service: ${incident.affectedService || "Unknown"}
-- Timestamp: ${incident.timestamp}
-- Environment: ${incident.environment}
+${wrapUntrustedInput("incident_title", incident.title)}
+${wrapUntrustedInput("incident_severity", incident.severity)}
+${wrapUntrustedInput("incident_service", incident.affectedService || "Unknown")}
+${wrapUntrustedInput("incident_timestamp", incident.timestamp)}
+${wrapUntrustedInput("incident_environment", incident.environment)}
 
 Stack Trace / Error Details:
-${incident.stackTrace || "None provided"}
+${wrapUntrustedInput("stack_trace", incident.stackTrace || "None provided")}
 
 Repository Context (Recent PRs, Commits, Deployments):
-${repositoryContext}
+${wrapUntrustedInput("repository_context", repositoryContext)}
 
 Based on this information, extract the following in JSON format:
 {
-  "likelyPrNumber": number (the ID of the PR most likely to have caused this, or null),
-  "likelyCommitSha": string (the SHA of the offending commit, or null),
-  "impactedFiles": string[] (list of files likely involved in the incident),
-  "impactedServices": string[] (services affected),
-  "confidenceScore": number (0-100 indicating how confident you are in this assessment),
-  "analysisDetails": string (brief explanation of the probable cause and reasoning)
+  "likelyPrNumber": number,
+  "likelyCommitSha": string,
+  "impactedFiles": string[],
+  "impactedServices": string[],
+  "confidenceScore": number,
+  "analysisDetails": string
 }
 
 Provide ONLY the valid JSON object and nothing else.

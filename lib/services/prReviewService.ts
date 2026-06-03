@@ -1,6 +1,7 @@
 import { GitHubService } from "@/lib/services/githubService";
 import { GeminiService } from "@/lib/services/geminiService";
 import { getActivePoliciesForRepository, buildPolicyPromptSection } from "@/lib/services/reviewPolicyService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export type ReviewSeverity = "critical" | "high" | "medium" | "low";
 export type ReviewCategory =
@@ -267,7 +268,9 @@ export async function reviewPullRequest(params: {
     }
 
     const chunkNotice = totalChunks > 1 ? `(Chunk ${chunkIndex} of ${totalChunks})` : "";
-    const prompt = `You are a senior code reviewer. Review the following GitHub Pull Request changes ${chunkNotice}.
+    const prompt = `${buildSafetyPrefix()}
+
+You are a senior code reviewer. Review the following GitHub Pull Request changes ${chunkNotice}.
 
 Return ONLY valid JSON matching this schema (no markdown, no code fences, no extra text):
 {
@@ -304,12 +307,13 @@ IMPORTANT:
 - Do NOT invent praise. If there are no genuine positives, return an empty "praise" array. For low-quality PRs (overallScore < 40), prefer an empty "praise" array.
 - Policy violations are serious: flag them with the severity specified in the policy rules.
 
-PR Title: ${pr.title}
-PR Author: ${pr.user?.login || "unknown"}
-Base: ${pr.base?.ref || "?"}  Head: ${pr.head?.ref || "?"}
-Changed files (subset):\n${stats}
-${impactContext}
-Diff (subset, may be truncated):\n${diff}
+${wrapUntrustedInput("pr_title", pr.title)}
+${wrapUntrustedInput("pr_author", pr.user?.login || "unknown")}
+${wrapUntrustedInput("pr_base_ref", pr.base?.ref || "?")}
+${wrapUntrustedInput("pr_head_ref", pr.head?.ref || "?")}
+${wrapUntrustedInput("pr_stats", stats)}
+${impactContext ? wrapUntrustedInput("impact_context", impactContext) : ""}
+${wrapUntrustedInput("pr_diff", diff)}
 `;
 
     const gemini = new GeminiService();

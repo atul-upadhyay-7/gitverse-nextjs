@@ -1,5 +1,6 @@
 import { getGeminiService } from "@/lib/services/geminiService";
 import { DriftAnalysisResult } from "../../types/documentation-drift";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class DocumentationAnalyzerService {
   /**
@@ -8,27 +9,28 @@ export class DocumentationAnalyzerService {
   async analyzeDrift(filePath: string, content: string): Promise<DriftAnalysisResult> {
     const gemini = getGeminiService();
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert technical writer and code reviewer. Analyze the following source code file and detect any "documentation drift".
 Documentation drift occurs when the comments, JSDoc, TS docstrings, or markdown sections inside the file no longer match the actual code implementation (e.g., missing parameters, removed parameters still documented, incorrect return values, stale descriptions).
 
-File: ${filePath}
+${wrapUntrustedInput("file_path", filePath)}
 
 Source Code:
 \`\`\`
-${content}
+${wrapUntrustedInput("source_code", content)}
 \`\`\`
 
 Return a JSON object matching this schema exactly (no markdown formatting, no comments, just valid JSON):
 {
   "hasDrift": boolean,
-  "driftConfidence": number, // 0 to 100 representing how confident you are that there is a drift
-  "outdatedDescriptions": string[], // List of outdated descriptions found
-  "missingParameters": string[], // List of parameters that are in the code but not documented
-  "removedParameters": string[], // List of parameters documented but not in the code
-  "incorrectReturnValues": string[], // List of return values documented incorrectly
-  "staleExamples": string[], // List of stale examples
-  "reasoning": string // Explanation of your findings
+  "driftConfidence": number,
+  "outdatedDescriptions": string[],
+  "missingParameters": string[],
+  "removedParameters": string[],
+  "incorrectReturnValues": string[],
+  "staleExamples": string[],
+  "reasoning": string
 }
 `;
 

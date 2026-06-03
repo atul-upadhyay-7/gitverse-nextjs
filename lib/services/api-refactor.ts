@@ -1,4 +1,5 @@
 import { getGeminiService } from "@/lib/services/geminiService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class APIRefactorService {
   /**
@@ -13,15 +14,15 @@ export class APIRefactorService {
   ): Promise<{ newContent: string; confidenceScore: number } | null> {
     const gemini = getGeminiService();
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert security researcher and software engineer.
 We are upgrading the dependency "${packageName}" from version ${fromVersion} to ${toVersion} in order to patch a security vulnerability.
 This may involve breaking API changes.
 
-Here is the content of the file ${filePath}:
-\`\`\`
-${fileContent}
-\`\`\`
+Here is the content of the file:
+${wrapUntrustedInput("file_path", filePath)}
+${wrapUntrustedInput("file_content", fileContent)}
 
 If this file uses "${packageName}", analyze the usage and refactor the code to be compatible with version ${toVersion}.
 If the file does not use "${packageName}" or requires no changes, set "requiresChanges" to false.

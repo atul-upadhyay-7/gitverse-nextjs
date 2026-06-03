@@ -1,5 +1,6 @@
 import { getGeminiService } from "@/lib/services/geminiService";
 import { DocumentationPatch, DriftAnalysisResult } from "../../types/documentation-drift";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 export class DocumentationGeneratorService {
   /**
@@ -8,7 +9,8 @@ export class DocumentationGeneratorService {
   async generatePatch(filePath: string, content: string, drift: DriftAnalysisResult): Promise<DocumentationPatch> {
     const gemini = getGeminiService();
 
-    const prompt = `
+    const prompt = `${buildSafetyPrefix()}
+
 You are an expert technical writer and code reviewer.
 The following source code has documentation drift. Your job is to output the ENTIRE file content with the documentation (JSDoc, inline comments, etc.) FIXED to match the current implementation.
 
@@ -19,26 +21,26 @@ Important Rules:
 4. Output the full modified file content.
 5. Provide a JSON response containing the suggestedContent (the full file), confidence, reasoning, and summary of changes.
 
-File: ${filePath}
+${wrapUntrustedInput("file_path", filePath)}
 
 Detected Drift Issues:
-- Outdated Descriptions: ${drift.outdatedDescriptions.join(', ')}
-- Missing Parameters: ${drift.missingParameters.join(', ')}
-- Removed Parameters: ${drift.removedParameters.join(', ')}
-- Incorrect Return Values: ${drift.incorrectReturnValues.join(', ')}
-- Stale Examples: ${drift.staleExamples.join(', ')}
+${wrapUntrustedInput("drift_outdated_descriptions", drift.outdatedDescriptions.join(', '))}
+${wrapUntrustedInput("drift_missing_parameters", drift.missingParameters.join(', '))}
+${wrapUntrustedInput("drift_removed_parameters", drift.removedParameters.join(', '))}
+${wrapUntrustedInput("drift_incorrect_return_values", drift.incorrectReturnValues.join(', '))}
+${wrapUntrustedInput("drift_stale_examples", drift.staleExamples.join(', '))}
 
 Source Code:
 \`\`\`
-${content}
+${wrapUntrustedInput("source_code", content)}
 \`\`\`
 
 Return a JSON object matching this schema exactly (no markdown formatting, no comments, just valid JSON):
 {
-  "suggestedContent": string, // The FULL corrected source code file as a string
-  "suggestedFixConfidence": number, // 0 to 100 representing how confident you are in this fix
-  "reasoning": string, // Explanation of how you fixed it
-  "summaryOfChanges": string // Short summary (e.g. "Updated JSDoc for function X to include missing param Y")
+  "suggestedContent": string,
+  "suggestedFixConfidence": number,
+  "reasoning": string,
+  "summaryOfChanges": string
 }
 `;
 

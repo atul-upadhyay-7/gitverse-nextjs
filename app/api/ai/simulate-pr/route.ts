@@ -8,6 +8,7 @@ import {
 } from "@/lib/utils/aiRequestValidation";
 import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
 import { getClientIp } from "@/lib/services/rateLimitService";
+import { buildSafetyPrefix, wrapUntrustedInput } from "@/lib/utils/promptSanitization";
 
 const SIMULATE_PR_RATE_LIMIT = 10;
 const SIMULATE_PR_WINDOW_MS = 60_000;
@@ -94,12 +95,14 @@ Tech Stack/Languages: ${langText || "N/A"}
 `;
     }
 
-    const prompt = `You are a senior principal software engineer and automated code reviewer.
+    const prompt = `${buildSafetyPrefix()}
+
+You are a senior principal software engineer and automated code reviewer.
 You are reviewing a simulated Pull Request by analyzing the following raw git diff output:
 
-${repoContext ? `===== REPOSITORY CONTEXT =====\n${repoContext}\n` : ""}
+${repoContext ? `===== REPOSITORY CONTEXT =====\n${wrapUntrustedInput("repo_context", repoContext)}\n` : ""}
 ===== GIT DIFF FOR REVIEW =====
-${diff}
+${wrapUntrustedInput("git_diff", diff)}
 ===============================
 
 Please perform a comprehensive code review. Provide your review structured in clean Markdown with the following sections:

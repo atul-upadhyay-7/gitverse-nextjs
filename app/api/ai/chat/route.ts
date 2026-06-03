@@ -18,6 +18,7 @@ import {
   buildSafetySystemPrompt,
   sanitizeTextContent,
   assembleChatPrompt,
+  wrapUntrustedInput,
 } from "@/lib/utils/promptSanitization";
 
 // Allowed roles in the conversation history
@@ -174,11 +175,12 @@ export async function POST(request: NextRequest) {
 
       try {
         const gemini = getGeminiService();
-        const fileSelectionPrompt = `
-You are a codebase indexing assistant. Given the following list of file paths in the repository "${repository.name}":
-${candidatePaths.join("\n")}
+        const fileSelectionPrompt = `${buildSafetySystemPrompt(repository.name)}
 
-And the user's question: "${question}"
+You are a codebase indexing assistant. Given the following list of file paths in the repository:
+${wrapUntrustedInput("candidate_paths", candidatePaths.join("\n"))}
+
+And the user's question: ${wrapUntrustedInput("user_question", question)}
 
 Select up to 3 files that are most likely to contain the code, logic, or definitions required to answer the user's question.
 Return ONLY a valid JSON array of strings containing the selected file paths, e.g. ["src/auth.ts", "prisma/schema.prisma"].
