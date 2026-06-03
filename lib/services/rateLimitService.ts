@@ -4,13 +4,7 @@ import prisma from "@/lib/prisma";
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 let lastCleanupAt = 0;
 
-export type AttemptType =
-  | "LOGIN"
-  | "SIGNUP"
-  | "CHANGE_PASSWORD"
-  | "DELETE_ACCOUNT"
-  | "REPOSITORY_ANALYSIS"
-  | "ANALYSIS_RUNNER";
+import { AttemptType } from "@prisma/client";
 
 const RETENTION_DAYS = 7;
 

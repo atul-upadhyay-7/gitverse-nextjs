@@ -2,16 +2,22 @@
 
 import * as React from 'react'
 
-import type { ToastActionElement, ToastProps } from '@/components/ui/toast'
-
+export type ToastActionElement = React.ReactElement;
+export type ToastProps = React.HTMLAttributes<HTMLDivElement> & { 
+  variant?: "default" | "destructive" | "success";
+  type?: "success" | "error" | "info" | "warning" | string;
+  message?: React.ReactNode;
+};
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000
 
-type ToasterToast = ToastProps & {
+export type ToasterToast = ToastProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 const actionTypes = {
@@ -143,7 +149,7 @@ function dispatch(action: Action) {
   })
 }
 
-type Toast = Omit<ToasterToast, 'id'>
+export type Toast = Omit<ToasterToast, 'id'>
 
 function toast({ ...props }: Toast) {
   const id = genId()

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { User, Lock, Shield, Trash2, AlertCircle, Sun, Moon } from "lucide-react";
+import { User, Lock, Shield, Trash2, AlertCircle, Sun, Moon, Cpu } from "lucide-react";
 import { Save } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTheme } from "@/context/ThemeContext";

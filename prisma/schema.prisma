@@ -370,6 +370,8 @@ enum AttemptType {
   SIGNUP
   CHANGE_PASSWORD
   DELETE_ACCOUNT
+  REPOSITORY_ANALYSIS
+  ANALYSIS_RUNNER
 }
 
 enum FileChangeType {

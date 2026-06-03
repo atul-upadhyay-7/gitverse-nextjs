@@ -11,6 +11,8 @@ import {
 import { buildTreeFromFiles, truncateTree, stringifyTree } from "@/lib/utils/tokenLimits";
 import { validateContentType } from "@/lib/utils/aiRequestValidation";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);

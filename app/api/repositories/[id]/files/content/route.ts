@@ -219,19 +219,6 @@ export async function GET(
       );
     }
 
-    const contentLengthHeader = response.headers.get("content-length");
-    if (contentLengthHeader) {
-      const size = parseInt(contentLengthHeader, 10);
-      if (size > 1024 * 1024) { // 1MB limit
-        return NextResponse.json({ error: "File size exceeds 1MB limit" }, { status: 400 });
-      }
-    }
-
-    const contentLength = response.headers.get("content-length");
-    if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "File exceeds maximum preview size of 5 MB" }, { status: 413 });
-    }
-
     const content = await response.text();
     if (content.length > 1024 * 1024) { // 1MB limit
       return NextResponse.json({ error: "File size exceeds 1MB limit" }, { status: 400 });

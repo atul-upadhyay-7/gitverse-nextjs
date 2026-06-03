@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Toast as ToastType } from "@/hooks/useToast";
+import { ToasterToast as ToastType } from "@/hooks/use-toast";
 
 interface ToastProps {
   toast: ToastType;

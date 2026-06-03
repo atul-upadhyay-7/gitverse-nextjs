@@ -44,15 +44,22 @@ const RETRYABLE_STATUS_CODES: readonly number[] = [
   504, // Gateway Timeout
 ];
 
+export type RetryConfig = {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+};
+
 /**
  * Default retry configuration.
  */
-export const DEFAULT_RETRY_CONFIG = {
+export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   maxRetries: 3,
   baseDelayMs: 10_000,
   maxDelayMs: 5 * 60_000, // 5 minutes
   backoffMultiplier: 2,
-} as const;
+};
 
 /**
  * Determines whether an error is retryable based on its message content
@@ -113,7 +120,7 @@ export function isRetryableError(error: unknown): boolean {
  */
 export function computeBackoffMs(
   attempt: number,
-  config?: Partial<typeof DEFAULT_RETRY_CONFIG>,
+  config?: Partial<RetryConfig>,
 ): number {
   const {
     baseDelayMs,
@@ -133,7 +140,7 @@ export function computeBackoffMs(
  */
 export function nextRetryDate(
   attempt: number,
-  config?: Partial<typeof DEFAULT_RETRY_CONFIG>,
+  config?: Partial<RetryConfig>,
 ): Date {
   return new Date(Date.now() + computeBackoffMs(attempt, config));
 }
@@ -166,7 +173,7 @@ export function classifyRetry(params: {
   currentRetryCount: number;
   maxRetries: number;
   error: unknown;
-  config?: Partial<typeof DEFAULT_RETRY_CONFIG>;
+  config?: Partial<RetryConfig>;
 }): {
   shouldRetry: boolean;
   retryCount: number;
@@ -206,7 +213,7 @@ function extractAllErrorMessages(error: unknown): string[] {
 
     if (obj instanceof Error) {
       if (obj.message) messages.push(obj.message);
-      if (obj.cause) collect(obj.cause, depth + 1);
+      if ((obj as any).cause) collect((obj as any).cause, depth + 1);
       return;
     }
 

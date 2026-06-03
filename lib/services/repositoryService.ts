@@ -1,5 +1,7 @@
 import prisma from "../prisma";
 import { GitService } from "./gitService";
+import { gitverseConfigParser, ParsedRepositoryKnowledge } from "../parsers/gitverseConfigParser";
+import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
 import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";

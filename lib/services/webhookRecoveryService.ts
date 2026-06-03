@@ -11,7 +11,7 @@ const STUCK_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 const RECOVERY_RETRY_CONFIG = {
   baseDelayMs: 60 * 1000,
   maxDelayMs: 30 * 60 * 1000,
-} as const;
+};
 
 export async function recoverStuckEvents(): Promise<{
   recovered: number;

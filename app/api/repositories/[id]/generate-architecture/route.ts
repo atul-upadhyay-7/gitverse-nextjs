@@ -36,7 +36,11 @@ export async function POST(
             type: "architecture-document",
             context: {
                 fileTree: contextFiles.map((f: any) => f.path).join("\n"),
-                commits: (repository.commits || []).slice(0, 50),
+                commits: (repository.commits || []).slice(0, 50).map((c: any) => ({
+                    message: c.message || "",
+                    author: c.authorName || c.author || "",
+                    date: (c.createdAt || c.committedAt || new Date()).toString(),
+                })),
                 languages: (repository.languages || []).slice(0, 20),
                 contributors: (repository.contributors || []).slice(0, 20)
             }
