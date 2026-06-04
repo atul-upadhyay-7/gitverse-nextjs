@@ -218,6 +218,9 @@ model Repository {
   status              String                        @default("pending") // pending, analyzing, completed, failed
   userId              Int                           @map("user_id")
   user                User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId            Int?                          @map("parent_id")
+  parent              Repository?                   @relation("MonorepoPackages", fields: [parentId], references: [id])
+  subPackages         Repository[]                  @relation("MonorepoPackages")
   createdAt           DateTime                      @default(now()) @map("created_at")
   updatedAt           DateTime                      @updatedAt @map("updated_at")
   branches            Branch[]

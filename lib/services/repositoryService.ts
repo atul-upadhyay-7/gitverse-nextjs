@@ -12,6 +12,7 @@ import { ParsedRepositoryKnowledge, gitverseConfigParser } from "../parsers/gitv
 import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
 import { getGeminiService } from "./geminiService";
 import { getGithubAccessToken } from "./githubAuthService";
+import { detectMonorepoPackages } from "../utils/monorepoUtils";
 
 function yieldIfHighMemory(threshold?: number): Promise<void> {
   if (threshold === undefined) {
@@ -294,7 +295,14 @@ export class RepositoryService {
 
       checkAborted();
 
-      await report({ progressPercent: 9, progressMessage: "Checking AI context configuration" });
+      // Check for monorepo workspaces if this is the root project
+      let subPackages: string[] = [];
+      if (!repository.targetDirectory) {
+        await report({ progressPercent: 9, progressMessage: "Detecting Monorepo sub-packages..." });
+        subPackages = await detectMonorepoPackages(tempDir);
+      }
+
+      await report({ progressPercent: 10, progressMessage: "Checking AI context configuration" });
 
       let knowledgeJson: ParsedRepositoryKnowledge | undefined = undefined;
       let knowledgeMd: ParsedRepositoryKnowledge | undefined = undefined;
@@ -595,6 +603,38 @@ export class RepositoryService {
         console.warn("Gemini cache invalidation failed:", error);
       }
 
+      // Automatically queue AnalysisJobs for any detected Monorepo sub-packages
+      if (subPackages.length > 0) {
+        await report({ progressPercent: 98, progressMessage: "Queueing sub-package analysis..." });
+        for (const pkgPath of subPackages) {
+          try {
+            const subRepo = await this.createRepository({
+              name: `${repository.name}/${pkgPath}`,
+              url: repository.url,
+              userId: repository.userId,
+              targetDirectory: pkgPath,
+              isPrivate: repository.isPrivate,
+            });
+
+            await prisma.repository.update({
+              where: { id: subRepo.id },
+              data: { parentId: repository.id }
+            });
+
+            await prisma.analysisJob.create({
+              data: {
+                repositoryId: subRepo.id,
+                userId: repository.userId,
+                status: "QUEUED",
+                type: "repository_analysis",
+              },
+            });
+          } catch (e) {
+            console.warn(`Failed to queue analysis for sub-package ${pkgPath}:`, e);
+          }
+        }
+      }
+
       await report({ progressPercent: 100, progressMessage: "Completed" });
 
     } catch (error: any) {
@@ -779,6 +819,8 @@ export class RepositoryService {
           take: 500,
         },
         knowledge: true,
+        subPackages: true,
+        parent: true,
       },
     });
 
@@ -797,12 +839,14 @@ export class RepositoryService {
             contributors: true,
             files: true,
             branches: true,
+            subPackages: true,
           },
         },
         languages: {
           orderBy: { percentage: "desc" },
           take: 3,
         },
+        parent: true,
       },
       orderBy: [
         { createdAt: "desc" },
