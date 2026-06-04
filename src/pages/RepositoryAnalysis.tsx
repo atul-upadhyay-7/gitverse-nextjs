@@ -31,6 +31,7 @@ import {
   Clock,
   Loader2,
   XCircle,
+  FileX2,
 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
@@ -69,6 +70,11 @@ const tabs: Tab[] = [
     id: "insights",
     label: "Insights",
     icon: <BarChart3 className="h-4 w-4" />,
+  },
+  {
+    id: "dead-code",
+    label: "Dead Code",
+    icon: <FileX2 className="h-4 w-4" />,
   },
 ];
 
@@ -583,7 +589,13 @@ export default function RepositoryAnalysis() {
                     {tabs.map((tab) => (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => {
+                          if (tab.id === "dead-code") {
+                            router.push(`/repo/${id}/dead-code`);
+                          } else {
+                            setActiveTab(tab.id);
+                          }
+                        }}
                         className={`
                           flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 whitespace-nowrap w-full sm:w-auto justify-center
                           ${
@@ -597,6 +609,14 @@ export default function RepositoryAnalysis() {
                         <span>{tab.label}</span>
                       </button>
                     ))}
+                    <div className="w-px bg-white/10 mx-1 self-stretch" />
+                    <Link
+                      href={`/repo/${id}/chat`}
+                      className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 whitespace-nowrap w-full sm:w-auto justify-center hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span>Chat</span>
+                    </Link>
                   </div>
                 </div>
 
