@@ -6,10 +6,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.startAnalysisWorkerLoop = startAnalysisWorkerLoop;
 require("dotenv/config");
 const os_1 = __importDefault(require("os"));
-const prisma_1 = __importDefault(require("../lib/prisma"));
+const prisma_1 = require("../lib/prisma");
 const analysisJobService_1 = require("../lib/services/analysisJobService");
 const repositoryService_1 = require("../lib/services/repositoryService");
-const rateLimit_1 = require("../lib/utils/rateLimit");
+process.on("unhandledRejection", async (reason) => {
+    console.error("FATAL unhandled rejection \u2014 worker will exit:", reason);
+    await (0, prisma_1.disconnectPrisma)();
+    process.exit(1);
+});
 const POLL_INTERVAL_MS = 2000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const LOCK_MS = 5 * 60_000;
@@ -57,12 +61,15 @@ async function runJob(job, params) {
                 workerId: params.workerId,
                 lockMs: params.lockMs,
             })
-                .catch((e) => console.error("heartbeat failed", (0, rateLimit_1.sanitizeErrorMessage)(e)));
+                .catch((e) => console.error("heartbeat failed", e));
         }, params.heartbeatIntervalMs);
         if (job.type !== "repository_analysis") {
             throw new Error(`Unsupported job type: ${job.type}`);
         }
-        await repositoryService_1.repositoryService.analyzeRepository(job.repositoryId, {
+        const details = job.progressDetails;
+        const scope = details?.scope;
+        await repositoryService_1.repositoryService.analyzeRepository(job.repositoryId, job.userId, {
+            scope,
             onProgress: async (update) => {
                 await writeProgress(update);
             },
@@ -71,28 +78,17 @@ async function runJob(job, params) {
             jobId: job.id,
             workerId: params.workerId,
         });
-        return true;
     }
     catch (err) {
-        const rateLimited = (0, rateLimit_1.isRateLimitError)(err);
-        const retryAfter = rateLimited ? (0, rateLimit_1.extractRetryAfter)(err) : null;
-        const safeMessage = (0, rateLimit_1.sanitizeErrorMessage)(err);
-        if (rateLimited) {
-            console.error(`Job ${job.id} rate limited (attempt ${job.attempts}/${job.maxAttempts})` +
-                (retryAfter ? `, retry after ${retryAfter}s` : ""));
-        }
-        else {
-            console.error(`Job ${job.id} failed: ${safeMessage}`);
-        }
+        const message = err?.message ? String(err.message) : String(err);
+        console.error(`Job ${job.id} failed:`, err);
         await analysisJobService_1.analysisJobService.markFailed({
             jobId: job.id,
             workerId: params.workerId,
-            error: safeMessage,
+            error: message,
             attempts: job.attempts,
             maxAttempts: job.maxAttempts,
-            retryAfter: retryAfter ?? undefined,
         });
-        return false;
     }
     finally {
         if (heartbeatTimer)
@@ -106,83 +102,50 @@ async function startAnalysisWorkerLoop(opts) {
     const lockMs = opts?.lockMs ?? LOCK_MS;
     console.log(`analysis worker starting: ${workerId}`);
     let stopping = false;
-    const startTimeMs = Date.now();
-    let totalJobsScanned = 0;
-    let jobsProcessed = 0;
-    let jobsSkipped = 0;
-    let jobsFailed = 0;
     const shutdown = async (signal) => {
         if (stopping)
             return;
         stopping = true;
         console.log(`received ${signal}, shutting down...`);
-        try {
-            await prisma_1.default.$disconnect();
-        }
-        catch {
-            // ignore
-        }
+        await (0, prisma_1.disconnectPrisma)();
         process.exit(0);
     };
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
     process.on("SIGINT", () => void shutdown("SIGINT"));
+    process.on("SIGQUIT", () => void shutdown("SIGQUIT"));
+    process.on("SIGHUP", () => void shutdown("SIGHUP"));
     while (!stopping) {
         try {
+            await analysisJobService_1.analysisJobService.reclaimOrphanedJobs();
             const job = await analysisJobService_1.analysisJobService.claimNextJob({
                 workerId,
                 lockMs,
             });
             if (!job) {
-                jobsSkipped++;
                 if (opts?.once)
-                    break;
+                    return;
                 await sleep(pollIntervalMs);
                 continue;
             }
-            totalJobsScanned++;
             console.log(`claimed job ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
-            const isSuccess = await runJob(job, { workerId, lockMs, heartbeatIntervalMs });
-            if (isSuccess) {
-                jobsProcessed++;
-            }
-            else {
-                jobsFailed++;
-            }
+            await runJob(job, { workerId, lockMs, heartbeatIntervalMs });
             if (opts?.once)
-                break;
+                return;
         }
         catch (e) {
-            console.error("worker loop error:", (0, rateLimit_1.sanitizeErrorMessage)(e));
-            if (opts?.once) {
-                return {
-                    totalJobsScanned,
-                    jobsProcessed,
-                    jobsSkipped,
-                    jobsFailed,
-                    executionDurationMs: Date.now() - startTimeMs,
-                    success: false,
-                };
-            }
+            console.error("worker loop error:", e);
+            if (opts?.once)
+                return;
             await sleep(pollIntervalMs);
         }
     }
-    return {
-        totalJobsScanned,
-        jobsProcessed,
-        jobsSkipped,
-        jobsFailed,
-        executionDurationMs: Date.now() - startTimeMs,
-        success: true,
-    };
 }
-// Run as standalone script
-// (tsc -> CJS) so `require.main === module` works after compilation.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isMain = typeof require !== "undefined" && require.main === module;
 if (isMain) {
     const once = !!process.env.WORKER_ONCE;
-    startAnalysisWorkerLoop({ once }).catch((e) => {
+    startAnalysisWorkerLoop({ once }).catch(async (e) => {
         console.error("worker fatal:", e);
+        await (0, prisma_1.disconnectPrisma)();
         process.exit(1);
     });
 }

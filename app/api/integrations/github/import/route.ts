@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAuth, sanitizeError } from "@/lib/middleware";
 import { GitHubService, GitHubRateLimitError } from "@/lib/services/githubService";
-import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 import { repositoryService } from "@/lib/services/repositoryService";
+import { analysisJobService } from "@/lib/services/analysisJobService";
+import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
+import { logger } from "@/lib/logger";
+function kickLocalRunner(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") return;
+  const origin = new URL(request.url).origin;
+  const secret = process.env.ANALYSIS_RUNNER_SECRET;
+  if (!secret) return;
+  void fetch(`${origin}/api/internal/run-analysis`, {
+    method: "POST",
+    headers: { "x-analysis-runner-secret": secret },
+  }).catch(() => {
+    // Best-effort only.
+  });
+}
+
+function kickProductionWorker() {
+  if (process.env.NODE_ENV !== "production") return;
+
+  void triggerAnalysisWorkerWorkflow().catch((error) => {
+    logger.error(
+      { err: sanitizeError(error) },
+      "Failed to dispatch analysis worker workflow",
+    );
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,21 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     const github = new GitHubService(token);
-    const valid = await github.validateToken();
-    if (!valid) {
-      return NextResponse.json(
-        {
-          error:
-            "Your GitHub token is invalid or has expired. Reconnect your GitHub account and provide a fresh token.",
-        },
-        { status: 401 },
-      );
-    }
     const repoData = await github.getRepository(parsed.owner, parsed.repo);
-
-    if (!repoData) {
-      return NextResponse.json({ error: "Not Found" }, { status: 404 });
-    }
 
     const repository = await repositoryService.createRepository({
       name: repoData.name,
@@ -56,9 +67,18 @@ export async function POST(request: NextRequest) {
       userId: user.userId,
     });
 
-    return NextResponse.json({ repository, source: "github" }, { status: 201 });
+    const job = await analysisJobService.createRepositoryAnalysisJob({
+      repositoryId: repository.id,
+      userId: user.userId,
+      scope: undefined,
+    });
+
+    kickLocalRunner(request);
+    kickProductionWorker();
+
+    return NextResponse.json({ repository, jobId: job.id, jobStatus: job.status, source: "github" }, { status: 201 });
   } catch (error: any) {
-    console.error("GitHub import error:", sanitizeErrorMessage(error));
+    console.error("GitHub import error:", sanitizeError(error));
 
     if (error instanceof GitHubRateLimitError) {
       return NextResponse.json(
@@ -67,6 +87,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to import from GitHub" },
+      { status: 500 }
+    );
   }
 }

@@ -1,296 +1,252 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { verifyTokenWithUserValidation } from "./auth";
+import { getNextAuthSecret } from "./config/env";
+import type { JWTPayload } from "./auth";
+import prisma from "@/lib/prisma";
 import { getToken } from "next-auth/jwt";
-import { verifyToken } from "./auth";
-
-export class HttpError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "HttpError";
-    this.status = status;
-  }
-}
-
-export function isHttpError(error: unknown): error is HttpError {
-  return error instanceof HttpError;
-}
-
-export async function requireAuth(
-  request: NextRequest
-): Promise<{ userId: number }> {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new HttpError("Authentication required", 401);
-  }
-
-  const token = authHeader.slice(7);
-  const payload = verifyToken(token);
-  if (!payload) {
-    throw new HttpError("Invalid or expired token", 401);
-  }
-
-  return { userId: payload.userId };
-}
-
-export async function getAuthUser(
-  request: NextRequest
-): Promise<{ userId: number } | null> {
-  try {
-    return await requireAuth(request);
-  } catch {
-    return null;
-  }
-}
-import { verifyToken, JWTPayload } from "./auth";
 
 export interface AuthenticatedRequest {
   user: JWTPayload;
 }
 
+/**
+ * Resolves the authenticated user from either a JWT bearer token
+ * or a NextAuth session cookie.
+ * Rejects tokens issued before the user's latest password change.
+ * Uses secure token validation with tokenVersion verification.
+ */
 export async function getAuthUser(
   request: NextRequest
 ): Promise<JWTPayload | null> {
-  try {
-    const authHeader = request.headers.get("authorization");
+  const authHeader = request.headers.get("authorization");
+  let userPayload: JWTPayload | null = null;
 
-    // 1) Existing JWT auth (Authorization: Bearer ...)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7).trim();
-      if (token) {
-        const payload = verifyToken(token);
-        if (payload && typeof payload.userId === "number" && payload.userId > 0) {
-          return payload;
+  // 1) Secure JWT auth (Authorization: Bearer ...)
+  // Uses verifyTokenWithUserValidation for proper tokenVersion checking
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    
+    try {
+      const payload = await verifyTokenWithUserValidation(token);
+      
+      if (payload) {
+        // Additional security check: verify user still exists
+        const dbUser = await prisma.user.findUnique({
+          where: { id: payload.userId },
+          select: {
+            id: true,
+            tokenVersion: true,
+            lockedUntil: true,
+          },
+        });
+
+        if (!dbUser) {
+          return null;
         }
+
+        if (dbUser.lockedUntil && dbUser.lockedUntil > new Date()) {
+          return null;
+        }
+
+        // Double-check tokenVersion matches (extra security)
+        if (payload.tokenVersion !== dbUser.tokenVersion) {
+          return null;
+        }
+
+        userPayload = payload;
       }
+    } catch (error) {
+      console.warn("[Auth] JWT validation error:", error);
+      return null;
+    }
+  }
+
+  // 2) NextAuth session cookie (Google OAuth)
+  if (!userPayload) {
+    try {
+      const token = await getToken({
+        req: request,
+        secret: getNextAuthSecret(),
+      });
+
+      if (token?.sub && token.email) {
+        const userId = Number(token.sub);
+
+        if (!Number.isFinite(userId)) {
+          return null;
+        }
+
+        const dbUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            passwordChangedAt: true,
+            tokenVersion: true,
+            lockedUntil: true,
+          },
+        });
+
+        if (!dbUser) {
+          return null;
+        }
+
+        if (dbUser.lockedUntil && dbUser.lockedUntil > new Date()) {
+          return null;
+        }
+
+        const issuedAt =
+          typeof token.iat === "number"
+            ? token.iat
+            : null;
+
+        if (
+          dbUser.passwordChangedAt &&
+          (issuedAt === null ||
+            issuedAt * 1000 <=
+              dbUser.passwordChangedAt.getTime())
+        ) {
+          return null;
+        }
+
+        // Validate tokenVersion for NextAuth session cookies.
+        // The JWT callback attaches tokenVersion at sign-in; if it no longer
+        // matches the DB value (after password change or logout), reject.
+        const jwtTokenVersion = (token as any).tokenVersion as number | undefined;
+        if (
+          jwtTokenVersion != null &&
+          jwtTokenVersion !== dbUser.tokenVersion
+        ) {
+          return null;
+        }
+
+        userPayload = {
+          userId,
+          email: token.email,
+        };
+      }
+    } catch {
+      // Ignore token retrieval errors
+    }
+  }
+
+  if (!userPayload) return null;
+
+  // Final verification: ensure user still exists
+  try {
+    const finalUser = await prisma.user.findUnique({
+      where: { id: userPayload.userId },
+      select: {
+        id: true,
+        tokenVersion: true,
+        lockedUntil: true,
+      },
+    });
+
+    if (!finalUser) {
+      return null;
     }
 
-    // 2) NextAuth session cookie (Google OAuth)
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    
-    if (!token?.sub || !token.email) return null;
-
-    const userId = Number(token.sub);
-    if (!Number.isFinite(userId) || userId <= 0) return null;
-
-    return { userId, email: token.email };
+    if (finalUser.lockedUntil && finalUser.lockedUntil > new Date()) {
+      return null;
+    }
   } catch (error) {
-    // Safely return null on any error without logging sensitive information
+    console.error(
+      "Database check failed in auth middleware:",
+      error
+    );
     return null;
   }
+
+  return userPayload;
 }
 
-export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
+/**
+ * Ensures the incoming request is authenticated.
+ * Throws an HttpError if authentication fails.
+ */
+export async function requireAuth(
+  request: NextRequest
+): Promise<JWTPayload> {
   const user = await getAuthUser(request);
 
-  if (!user || !user.userId) {
+  if (!user) {
     throw new HttpError(401, "Unauthorized");
   }
 
-    // Step 2: If no token, user is not logged in → redirect to login
-    if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    const userId = token.sub; // This is the logged-in user's ID
-
-    // Step 3: Get the resource owner ID from the request headers (if provided)
-    const resourceOwnerId = request.headers.get("x-resource-owner-id");
-
-    // Step 4: If a resource owner is specified, check it matches the logged-in user
-    if (resourceOwnerId && resourceOwnerId !== userId) {
-      // Someone is trying to access another user's data → block them!
-      return NextResponse.json(
-        { error: "Forbidden: You do not have access to this resource." },
-        { status: 403 }
-      );
-    }
-
-    // Step 5: Everything checks out → allow the request to continue
-    return NextResponse.next();
-
-  } catch (error) {
-    // Step 6: Something went wrong on the server → return 500 error
-    console.error("Middleware error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
-  }
-}
-
-// This tells Next.js WHICH pages/routes to protect
-export const config = {
-  matcher: ["/api/:path*", "/dashboard/:path*", "/profile/:path*"],
-};
-
-export function badRequestResponse(message = "Bad request") {
-  return new NextResponse(JSON.stringify({ error: message }), {
-    status: 400,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-export function unauthorizedResponse(message = "Authentication required") {
-  return new NextResponse(JSON.stringify({ error: message }), {
-    status: 401,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-export function forbiddenResponse(message = "You do not have access to this resource") {
-  return new NextResponse(JSON.stringify({ error: message }), {
-    status: 403,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-export function notFoundResponse(message = "Resource not found") {
-  return new NextResponse(JSON.stringify({ error: message }), {
-    status: 404,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-export function isHttpError(error: any): error is { status: number; message: string } {
-  return typeof error === "object" && error !== null && "status" in error && "message" in error;
-}
-
-export async function getAuthUser(request: NextRequest) {
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !token.sub) return null;
-  return { userId: parseInt(token.sub, 10) };
-}
-
-export async function requireAuth(request: NextRequest) {
-  const user = await getAuthUser(request);
-  if (!user || !user.userId) throw { status: 401, message: "Authentication required" };
   return user;
 }
+
+/**
+ * Ensures the authenticated user owns the requested resource.
+ */
+export async function requireOwnership(
+  request: NextRequest,
+  resourceUserId: number
+): Promise<JWTPayload> {
+  const user = await requireAuth(request);
+
+  if (user.userId !== resourceUserId) {
+    throw new HttpError(403, "Forbidden");
+  }
+
+  return user;
+}
+
 export class HttpError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+
+  constructor(status: number, message: string) {
     super(message);
-    this.name = "HttpError";
     this.status = status;
   }
 }
 
-export function isHttpError(error: unknown): error is HttpError {
-  return error instanceof HttpError;
+export function isHttpError(
+  error: unknown
+): error is HttpError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof (error as any).status === "number"
+  );
 }
 
-export async function requireAuth(
-  request: NextRequest
-): Promise<{ userId: number }> {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new HttpError("Authentication required", 401);
+export function sanitizeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
   }
 
-  const token = authHeader.slice(7);
-  const payload = verifyToken(token);
-  if (!payload) {
-    throw new HttpError("Invalid or expired token", 401);
-  }
-
-  return { userId: payload.userId };
-}
-
-export async function getAuthUser(
-  request: NextRequest
-): Promise<{ userId: number } | null> {
   try {
-    return await requireAuth(request);
+    const str = String(error);
+
+    return str.length > 200
+      ? str.substring(0, 200) + "..."
+      : str;
   } catch {
-    return null;
+    return "Unknown error";
   }
 }
 
-export interface AuthenticatedRequest {
-  user: JWTPayload;
+export function badRequestResponse(message: string, status: number = 400): NextResponse {
+  return NextResponse.json({ error: message }, { status });
 }
 
-export async function getAuthUser(
-  request: NextRequest
-): Promise<JWTPayload | null> {
-  try {
-    const authHeader = request.headers.get("authorization");
+export function getPrismaErrorResponse(error: any): NextResponse | null {
+  const isColdStartError =
+    error?.code === 'P1001' ||
+    error?.code === 'P2024' ||
+    error?.message?.toLowerCase().includes('timeout') ||
+    error?.message?.toLowerCase().includes('connection pool') ||
+    error?.message?.toLowerCase().includes('connect') ||
+    error?.message?.toLowerCase().includes('fetch failed');
 
-    // 1) Existing JWT auth (Authorization: Bearer ...)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7).trim();
-      if (token) {
-        const payload = verifyToken(token);
-        if (payload && typeof payload.userId === "number" && payload.userId > 0) {
-          return payload;
-        }
-      }
-    }
-
-    // 2) NextAuth session cookie (Google OAuth)
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    
-    if (!token?.sub || !token.email) return null;
-
-    const userId = Number(token.sub);
-    if (!Number.isFinite(userId) || userId <= 0) return null;
-
-    return { userId, email: token.email };
-  } catch (error) {
-    // Safely return null on any error without logging sensitive information
-    return null;
-  }
-}
-
-export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
-  const user = await getAuthUser(request);
-
-  if (!user || !user.userId) {
-    throw new HttpError(401, "Unauthorized");
-  }
-
-    // Step 2: If no token, user is not logged in → redirect to login
-    if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    const userId = token.sub; // This is the logged-in user's ID
-
-    // Step 3: Get the resource owner ID from the request headers (if provided)
-    const resourceOwnerId = request.headers.get("x-resource-owner-id");
-
-    // Step 4: If a resource owner is specified, check it matches the logged-in user
-    if (resourceOwnerId && resourceOwnerId !== userId) {
-      // Someone is trying to access another user's data → block them!
-      return NextResponse.json(
-        { error: "Forbidden: You do not have access to this resource." },
-        { status: 403 }
-      );
-    }
-
-    // Step 5: Everything checks out → allow the request to continue
-    return NextResponse.next();
-
-  } catch (error) {
-    // Step 6: Something went wrong on the server → return 500 error
-    console.error("Middleware error:", error);
+  if (isColdStartError) {
     return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
+      { error: "DATABASE_COLD_START", message: "Waking up database..." },
+      { status: 503 }
     );
   }
-}
 
-// This tells Next.js WHICH pages/routes to protect
-export const config = {
-  // We explicitly DO NOT include '/api/:path*' because API routes 
-  // manage their own auth via requireAuth(), allowing webhooks and crons to work.
-  matcher: ["/dashboard/:path*", "/profile/:path*"],
-};
+  return null;
+}

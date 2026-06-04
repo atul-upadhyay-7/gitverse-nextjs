@@ -1,51 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser, unauthorizedResponse } from "@/lib/middleware";
-import { getAuthUser } from "@/lib/api-auth";
+import { getAuthUser, sanitizeError } from "@/lib/middleware";
+import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
-    // Guard: reject non-JSON content-type if body is provided
-    const contentType = request.headers.get("content-type");
-    if (contentType && !contentType.includes("application/json")) {
+    const user = await getAuthUser(request);
+
+    if (!user) {
       return NextResponse.json(
-        { error: "Content-Type must be application/json" },
-        { status: 400 }
+        { error: "Invalid or expired authentication token" },
+        { status: 401 }
       );
     }
 
-    const user = await getAuthUser(request);
-    if (!user) {
-      return unauthorizedResponse("No active session to log out from");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await prisma.user.update({
+      where: { id: user.userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
 
-    // In a stateless JWT setup, logout is handled client-side by removing the token
-    // We can optionally implement token blacklisting here if needed
-    
+    return NextResponse.json({
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("Logout error:", sanitizeError(error));
+
     return NextResponse.json(
-      { message: "Logged out successfully" },
-      { status: 200 }
-    );
-  } catch (err) {
-    console.error("[logout] Unexpected error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred" },
+      { error: "Failed to process logout request" },
       { status: 500 }
     );
-  }
-}
-
-// Reject wrong HTTP methods
-export async function GET() {
-  return NextResponse.json(
-    { error: "Method not allowed. Use POST." },
-    { status: 405, headers: { Allow: "POST" } }
-  );
-
-} catch (error) {
-    console.error("Logout API Error:", error);
-
-    //prevent stack trace from reaching client
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

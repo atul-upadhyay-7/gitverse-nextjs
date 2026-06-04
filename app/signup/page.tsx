@@ -1,12 +1,12 @@
 'use client'
 
+import React, { Suspense } from 'react'
 import Signup from '@/pages/Signup'
-import { Suspense } from "react";
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div>Loading...</div>}>
       <Signup />
     </Suspense>
-  );
+  )
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getAuthUser } from "@/lib/api-auth";
+import { getAuthUser, sanitizeError } from "@/lib/middleware";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,7 +10,15 @@ export async function GET(request: NextRequest) {
     const user = await getAuthUser(request);
 
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        {
+          status: 401,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, private",
+          },
+        },
+      );
     }
 
     // Fetch user details
@@ -19,23 +27,37 @@ export async function GET(request: NextRequest) {
     });
 
     if (!userDetails) {
-      return NextResponse.json({ error: "Not Found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "User not found" },
+        {
+          status: 404,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, private",
+          },
+        },
+      );
     }
 
-    return NextResponse.json({
-      user: {
-        id: userDetails.id,
-        email: userDetails.email,
-        name: userDetails.name,
-        avatarUrl: (userDetails as any).image,
-      },
-    });
-  } catch (error) {
-    console.error("Get user error:", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
-      { error: "An unexpected error occurred" },
-      { status: 500 }
+      {
+        user: {
+          id: userDetails.id,
+          email: userDetails.email,
+          name: userDetails.name,
+          avatarUrl: (userDetails as any).image,
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        },
+      },
     );
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  } catch (error) {
+    console.error("Get user error:", sanitizeError(error));
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
   }
 }

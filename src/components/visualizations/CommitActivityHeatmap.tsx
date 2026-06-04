@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
-import { Card, EmptyState } from "@/components/ui";
-import { Calendar } from "lucide-react";
+import { Card } from "@/components/ui";
 
 interface CommitData {
   date: string;
@@ -10,22 +9,37 @@ interface CommitData {
   hour: number;
 }
 
+export interface HeatmapCommit {
+  id?: string;
+  message?: string;
+  authorName?: string;
+  shortHash?: string;
+  committedAt?: string | Date;
+  createdAt?: string | Date;
+  additions?: number;
+  deletions?: number;
+}
+
+export interface HeatmapRepository {
+  commits?: HeatmapCommit[];
+}
+
 interface CommitActivityHeatmapProps {
-  repository?: any;
+  repository?: HeatmapRepository;
 }
 
 // Generate commit activity data from repository commits
-const generateCommitData = (commits: any[], now: Date): CommitData[] => {
+const generateCommitData = (commits: HeatmapCommit[], now: Date): CommitData[] => {
   const data: CommitData[] = [];
   const commitsByDate = new Map<string, number>();
 
   // Count commits by date
-  commits?.forEach((commit: any) => {
-    const date = new Date(commit.committedAt || commit.createdAt);
-    if (!isNaN(date.getTime())) {
-      const dateStr = date.toISOString().split("T")[0];
-      commitsByDate.set(dateStr, (commitsByDate.get(dateStr) || 0) + 1);
-    }
+  commits?.forEach((commit: HeatmapCommit) => {
+    const dateVal = commit.committedAt || commit.createdAt;
+    if (!dateVal) return;
+    const date = new Date(dateVal);
+    const dateStr = date.toISOString().split("T")[0];
+    commitsByDate.set(dateStr, (commitsByDate.get(dateStr) || 0) + 1);
   });
 
   // Fill in the last 52 weeks
@@ -57,12 +71,6 @@ export function CommitActivityHeatmap({
     date: string;
     count: number;
   } | null>(null);
-  const hasCommits = Boolean(repository?.commits && repository.commits.length > 0);
-
-  // =========================================================
-  // CRITICAL FIX: LATE EXTENDED GUARD FOR PERFORMANCE & SAFETY
-  // =========================================================
-  const hasNoCommits = !repository?.commits || repository.commits.length === 0;
 
   useEffect(() => {
     // Advance the window automatically as time passes (refresh at next local midnight).
@@ -84,15 +92,8 @@ export function CommitActivityHeatmap({
 
   useEffect(() => {
     if (!svgRef.current) return;
-    if (!hasCommits) return;
-    if (!svgRef.current || hasNoCommits) return;
-    if (!svgRef.current || !repository?.commits || repository.commits.length === 0) return;
 
-    if (!repository?.commits || repository.commits.length === 0) {
-      return;
-    }
-
-    const data = generateCommitData(repository.commits, now);
+    const data = generateCommitData(repository?.commits || [], now);
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
@@ -152,11 +153,23 @@ export function CommitActivityHeatmap({
 
     // Month labels - derived from the rolling 52-week window
     const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
 
-    const monthPositions: Array<{ month: string; x: number; fullDate: Date }> = [];
+    // Collect month label positions (keep unique month+year, so labels slide forward over time)
+    const monthPositions: Array<{ month: string; x: number; fullDate: Date }> =
+      [];
     const seenMonthKeys = new Set<string>();
 
     weeks.forEach((weekNum, weekIndex) => {
@@ -180,8 +193,10 @@ export function CommitActivityHeatmap({
       }
     });
 
+    // Sort by x-position (left to right)
     monthPositions.sort((a, b) => a.x - b.x);
 
+    // Draw month labels
     monthPositions.forEach(({ month, x }) => {
       g.append("text")
         .attr("class", "month-label")
@@ -268,6 +283,7 @@ export function CommitActivityHeatmap({
             }
           });
 
+        // Animate cells on load
         cell
           .attr("opacity", 0)
           .transition()
@@ -294,6 +310,7 @@ export function CommitActivityHeatmap({
       .ticks(5)
       .tickFormat((d) => `${d}`);
 
+    // Gradient for legend
     const defs = svg.append("defs");
     const gradient = defs
       .append("linearGradient")
@@ -342,14 +359,14 @@ export function CommitActivityHeatmap({
       .attr("fill", "currentColor")
       .attr("font-size", "10px")
       .text("More");
-  }, [repository, now, hasCommits]);
+  }, [repository, now]);
 
+  // Get commits for selected date
   const getCommitsForDate = (date: string) => {
     return (
-      repository?.commits?.filter((commit: any) => {
-        const commitDate = new Date(commit.committedAt || commit.createdAt)
-          .toISOString()
-          .split("T")[0];
+      repository?.commits?.filter((commit: HeatmapCommit) => {
+        const dateVal = commit.committedAt || commit.createdAt;
+        const commitDate = dateVal ? new Date(dateVal).toISOString().split("T")[0] : "";
         return commitDate === date;
       }) || []
     );
@@ -359,27 +376,6 @@ export function CommitActivityHeatmap({
     ? getCommitsForDate(selectedDate.date)
     : [];
 
-  if (!hasCommits) {
-  if (hasNoCommits) {
-    return (
-      <Card className="glass p-4 sm:p-6 flex min-h-[350px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-border/60 text-center">
-        <div className="w-full text-left mb-4">
-          <h3 className="text-base sm:text-lg font-semibold">Commit Activity</h3>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Contribution activity over the last 52 weeks
-          </p>
-        </div>
-        <div className="flex flex-col items-center justify-center py-8">
-          <EmptyState
-            icon={Calendar}
-            title="No commit activity"
-            description="We couldn't find any commit history recorded for this repository."
-          />
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <Card className="glass p-4 sm:p-6">
       <div className="mb-4">
@@ -388,7 +384,6 @@ export function CommitActivityHeatmap({
           Contribution activity over the last 52 weeks
         </p>
       </div>
-
       <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
         <svg
           ref={svgRef}
@@ -426,7 +421,7 @@ export function CommitActivityHeatmap({
           </div>
 
           <div className="space-y-2 max-h-48 sm:max-h-60 overflow-y-auto">
-            {selectedCommits.map((commit: any) => (
+            {selectedCommits.map((commit: HeatmapCommit) => (
               <div
                 key={commit.id}
                 className="p-2 sm:p-3 bg-background/30 rounded border border-border/30 hover:border-border/60 transition-colors"
@@ -442,23 +437,27 @@ export function CommitActivityHeatmap({
                       <span className="font-mono">{commit.shortHash}</span>
                       <span className="hidden sm:inline">•</span>
                       <span>
-                        {new Date(commit.committedAt).toLocaleTimeString(
+                        {commit.committedAt || commit.createdAt ? new Date(commit.committedAt || commit.createdAt || "").toLocaleTimeString(
                           "en-US",
                           {
                             hour: "2-digit",
                             minute: "2-digit",
                           }
-                        )}
+                        ) : "Unknown"}
                       </span>
                     </div>
                   </div>
-                  {commit.additions > 0 || commit.deletions > 0 ? (
+                  {(commit.additions || 0) > 0 || (commit.deletions || 0) > 0 ? (
                     <div className="flex items-center gap-2 text-xs flex-shrink-0">
-                      {commit.additions > 0 && (
-                        <span className="text-green-400">+{commit.additions}</span>
+                      {(commit.additions || 0) > 0 && (
+                        <span className="text-green-400">
+                          +{commit.additions}
+                        </span>
                       )}
-                      {commit.deletions > 0 && (
-                        <span className="text-red-400">-{commit.deletions}</span>
+                      {(commit.deletions || 0) > 0 && (
+                        <span className="text-red-400">
+                          -{commit.deletions}
+                        </span>
                       )}
                     </div>
                   ) : null}
@@ -469,21 +468,25 @@ export function CommitActivityHeatmap({
         </div>
       )}
 
-      <div
-        ref={tooltipRef}
-        className="fixed p-3 rounded-lg pointer-events-none shadow-xl border"
-        style={{
-          opacity: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.9)",
-          color: "white",
-          zIndex: 9999,
-          backdropFilter: "blur(8px)",
-          display: "none",
-          left: "0px",
-          top: "0px",
-          whiteSpace: "nowrap",
-        }}
-      />
+<div
+  ref={tooltipRef}
+  className="
+    fixed p-3 rounded-lg pointer-events-none shadow-xl border
+    translate-x-[-100px] translate-y-[-200px]
+    sm:translate-x-[-350px] sm:translate-y-[-320px]
+  "
+  style={{
+    opacity: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    color: "white",
+    zIndex: 9999,
+    backdropFilter: "blur(8px)",
+    left: "0px",
+    top: "0px",
+    whiteSpace: "nowrap",
+  }}
+/>
+
     </Card>
   );
 }
