@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth(request);
     const ip = getClientIp(request);
 
+    // Rate limit MFA setup to prevent abuse
     const rlResult = await checkRateLimit({
       endpoint: "mfa:setup",
       userId: user.userId,
@@ -124,6 +125,7 @@ export async function DELETE(request: NextRequest) {
     const user = await requireAuth(request);
     const ip = getClientIp(request);
 
+    // Rate limit MFA disable attempts
     const rlResult = await checkRateLimit({
       endpoint: "mfa:setup",
       userId: user.userId,

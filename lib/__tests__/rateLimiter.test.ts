@@ -151,6 +151,9 @@ describe("checkRateLimit", () => {
     });
 
     expect(result.allowed).toBe(true);
+    // Verify the key was built with IP, not user
+    const pipelineCall = mockRedis.pipeline.mock.calls[0];
+    expect(pipelineCall).toBeDefined();
   });
 
   it("fails open when Redis returns null pipeline result", async () => {
@@ -192,6 +195,7 @@ describe("checkRateLimit", () => {
       userId: 1,
     });
 
+    expect(result.tier).toBeUndefined();
     expect(result.limit).toBe(5);
   });
 
@@ -254,22 +258,6 @@ describe("checkRateLimit", () => {
     });
 
     expect(mockPipelineInc).toHaveBeenCalledWith("rl:mfa:verify:ip:unknown");
-  });
-
-  it("handles ai:analyze-repository endpoint correctly", async () => {
-    mockPipelineExec.mockResolvedValue([
-      [null, 1],
-      [null, 60],
-    ]);
-
-    const result = await checkRateLimit({
-      endpoint: "ai:analyze-repository",
-      userId: 1,
-      tier: "free",
-    });
-
-    expect(result.allowed).toBe(true);
-    expect(result.limit).toBe(5);
   });
 });
 

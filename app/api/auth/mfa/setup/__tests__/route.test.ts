@@ -70,6 +70,7 @@ describe("POST /api/auth/mfa/setup", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true, remaining: 4, windowSec: 300, limit: 5, resetInSec: 300 });
     mockRequireAuth.mockResolvedValue({ userId: 1, email: "test@test.com" });
     mockUserFindUnique.mockResolvedValue({ email: "test@test.com" });
+    mockGetMfaStatus.mockResolvedValue(null);
     mockGenerateTOTPSecret.mockReturnValue("JBSWY3DPEHPK3PXP");
     mockBuildOtpAuthUri.mockReturnValue("otpauth://totp/test@test.com?secret=JBSWY3DPEHPK3PXP");
     mockUpsertMfaSecret.mockResolvedValue(undefined);
@@ -78,7 +79,7 @@ describe("POST /api/auth/mfa/setup", () => {
   it("returns 401 when not authenticated", async () => {
     mockRequireAuth.mockRejectedValue({ status: 401, message: "Not authenticated" });
 
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
     expect(response.status).toBe(401);
   });
 
@@ -87,11 +88,10 @@ describe("POST /api/auth/mfa/setup", () => {
     mockRateLimitResponse.mockReturnValue(
       new Response(JSON.stringify({ error: "Too Many Requests" }), {
         status: 429,
-        headers: { "Retry-After": "300" },
       }),
     );
 
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
     expect(response.status).toBe(429);
     expect(mockLogAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "RATE_LIMIT_EXCEEDED" }),
@@ -99,7 +99,7 @@ describe("POST /api/auth/mfa/setup", () => {
   });
 
   it("calls checkRateLimit with mfa:setup endpoint", async () => {
-    await POST(mockRequest({}));
+    await POST(mockRequest());
     expect(mockCheckRateLimit).toHaveBeenCalledWith(
       expect.objectContaining({ endpoint: "mfa:setup" }),
     );
@@ -108,51 +108,69 @@ describe("POST /api/auth/mfa/setup", () => {
   it("returns 404 when user not found", async () => {
     mockUserFindUnique.mockResolvedValue(null);
 
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
     expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error).toBe("User not found");
   });
 
   it("returns 409 when MFA is already enabled", async () => {
     mockGetMfaStatus.mockResolvedValue({ isEnabled: true });
 
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
     expect(response.status).toBe(409);
     const body = await response.json();
     expect(body.error).toContain("already enabled");
   });
 
   it("generates secret and returns otpauth URI on success", async () => {
-    mockGetMfaStatus.mockResolvedValue(null);
-
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.secret).toBe("JBSWY3DPEHPK3PXP");
     expect(body.otpauthUri).toContain("otpauth://");
+    expect(body.message).toContain("QR code");
     expect(mockUpsertMfaSecret).toHaveBeenCalledWith(1, "JBSWY3DPEHPK3PXP");
   });
 
   it("includes user email in otpauth URL", async () => {
-    mockGetMfaStatus.mockResolvedValue(null);
-
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
     const body = await response.json();
     expect(body.otpauthUri).toContain("test@test.com");
   });
 
-  it("logs audit event on setup", async () => {
-    mockGetMfaStatus.mockResolvedValue(null);
-
-    await POST(mockRequest({}));
+  it("logs audit event on successful setup", async () => {
+    await POST(mockRequest());
     expect(mockLogAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "MFA_ENABLED" }),
+      expect.objectContaining({
+        action: "MFA_ENABLED",
+        details: expect.objectContaining({ stage: "setup_initiated" }),
+      }),
+    );
+  });
+
+  it("passes user tier to rate limiter", async () => {
+    await POST(mockRequest());
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: "mfa:setup",
+        userId: 1,
+        tier: "free",
+      }),
     );
   });
 
   it("handles errors gracefully", async () => {
     mockUserFindUnique.mockRejectedValue(new Error("DB error"));
 
-    const response = await POST(mockRequest({}));
+    const response = await POST(mockRequest());
+    expect(response.status).toBe(500);
+  });
+
+  it("handles server errors gracefully", async () => {
+    mockRequireAuth.mockRejectedValue(new Error("Unexpected error"));
+
+    const response = await POST(mockRequest());
     expect(response.status).toBe(500);
   });
 });
@@ -179,12 +197,14 @@ describe("DELETE /api/auth/mfa/setup", () => {
     mockRateLimitResponse.mockReturnValue(
       new Response(JSON.stringify({ error: "Too Many Requests" }), {
         status: 429,
-        headers: { "Retry-After": "300" },
       }),
     );
 
     const response = await DELETE(mockRequest({ token: "123456" }));
     expect(response.status).toBe(429);
+    expect(mockLogAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "RATE_LIMIT_EXCEEDED" }),
+    );
   });
 
   it("calls checkRateLimit with mfa:setup endpoint", async () => {
@@ -224,7 +244,7 @@ describe("DELETE /api/auth/mfa/setup", () => {
     expect(response.status).toBe(409);
   });
 
-  it("returns 401 for invalid TOTP token", async () => {
+  it("returns 401 when TOTP token is invalid", async () => {
     mockMfaConfigFindUnique.mockResolvedValue({ totpSecret: "secret", isEnabled: true });
     mockVerifyTOTP.mockReturnValue(false);
 
@@ -244,7 +264,7 @@ describe("DELETE /api/auth/mfa/setup", () => {
     expect(mockDisableMfa).toHaveBeenCalledWith(1);
   });
 
-  it("logs audit event on MFA disable", async () => {
+  it("logs audit event on successful disable", async () => {
     mockMfaConfigFindUnique.mockResolvedValue({ totpSecret: "secret", isEnabled: true });
 
     await DELETE(mockRequest({ token: "123456" }));
@@ -261,5 +281,12 @@ describe("DELETE /api/auth/mfa/setup", () => {
     expect(mockLogAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: "MFA_FAILED" }),
     );
+  });
+
+  it("handles server errors gracefully", async () => {
+    mockRequireAuth.mockRejectedValue(new Error("Unexpected error"));
+
+    const response = await DELETE(mockRequest({ token: "123456" }));
+    expect(response.status).toBe(500);
   });
 });
