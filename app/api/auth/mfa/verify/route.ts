@@ -15,6 +15,21 @@
  *
  * Backup code verification:
  *   Send `{ backupCode: string }` instead of `token` to use a backup code.
+ *
+ * ── Security Model ──────────────────────────────────────────────────────────
+ *
+ * This endpoint NEVER returns the TOTP secret in any response, regardless
+ * of mode or outcome.  The secret is decrypted in-memory via
+ * `getDecryptedTotpSecret` solely for the purpose of generating the expected
+ * token; it is garbage-collected when the handler returns.
+ *
+ * Backup codes are stored as SHA-256 hashes (not plaintext).  The plaintext
+ * codes are shown exactly once — during enrollment — and the caller is
+ * warned to save them before they are discarded forever.
+ *
+ * Both `mfa:verify` (this endpoint) and `mfa:setup` have independent rate
+ * limit quotas to prevent brute-force and enumeration attacks.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -76,7 +91,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Decrypt the stored TOTP secret (exists after /api/auth/mfa/setup)
+    // Decrypt the stored TOTP secret (exists after /api/auth/mfa/setup).
+    // getDecryptedTotpSecret transparently handles both recently-encrypted
+    // rows (tokenEncrypted: true) and legacy plaintext rows.
+    // The plaintext secret exists only in this local variable — it is never
+    // returned in any response, logged, or persisted.
     const secret = await getDecryptedTotpSecret(user.userId);
     if (!secret) {
       return NextResponse.json(
