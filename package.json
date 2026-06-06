@@ -28,10 +28,13 @@
     "test:validation": "tsx scripts/test-validation.ts",
     "test:e2e": "playwright test",
     "test": "jest",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "kms:init": "tsx scripts/kms-init.ts",
+    "rotate:dek": "tsx scripts/rotate-dek.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
+    "@aws-sdk/client-kms": "^3.1063.0",
     "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-neon": "^7.2.0",

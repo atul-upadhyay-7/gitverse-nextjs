@@ -95,6 +95,15 @@ function prismaIntIdAdapter(): Adapter {
         ...account,
         userId: intUserId(account.userId),
       } as any;
+
+      if (data.access_token || data.refresh_token || data.id_token) {
+        const { encryptToken } = await import("@/lib/utils/envelopeEncryption");
+        if (data.access_token) data.access_token = await encryptToken(data.access_token);
+        if (data.refresh_token) data.refresh_token = await encryptToken(data.refresh_token);
+        if (data.id_token) data.id_token = await encryptToken(data.id_token);
+        data.tokenEncrypted = true;
+      }
+
       await prisma.account.create({ data });
       return account;
     },
