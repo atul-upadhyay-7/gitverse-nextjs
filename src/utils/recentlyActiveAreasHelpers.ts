@@ -6,7 +6,9 @@
 import {
   RecentActivityAnalysis,
   AreaActivity,
+  TimeWindow,
 } from "@/types/recentlyActiveAreas";
+import { getActivityLevelDisplay } from "@/config/recentlyActiveAreasConfig";
 
 /**
  * Formats activity score with interpretation
