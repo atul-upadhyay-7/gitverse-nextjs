@@ -63,7 +63,6 @@ import { buildApiUrl } from "@/services/apiConfig";
 import axios from "axios";
 import { FavoriteButton } from "./FavoriteButton";
 
-
 interface RepositoryData {
   id: string;
   name: string;
